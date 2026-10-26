@@ -284,6 +284,15 @@ body {
   }
 }
 
+/* the two knob columns of a module: the sound knobs and the mixer */
+.strip-body {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 14px;
+}
+
 /* the knob column */
 .strip-knobs {
   display: flex;
@@ -291,6 +300,20 @@ body {
   align-items: center;
   gap: 7px;
   margin-top: 2px;
+}
+
+/* The second, shorter column of a module: the mixer of the channel. A
+ * hairline divides it from the sound knobs, as a rule printed on the
+ * plate would. */
+.strip-mix {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  margin-top: 2px;
+  padding-left: 14px;
+  border-left: 1px solid rgba(20, 23, 26, 0.18);
+  box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.4);
 }
 
 .knob-cell {

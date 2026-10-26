@@ -6,22 +6,23 @@ import {
   paramIndex,
   voiceIndex,
   type EngineState,
-  type Param,
   type ParamInfo,
   type Voice,
 } from '../audio/protocol';
 import { fromQ16, toQ16 } from '../audio/units';
 import { createFitter, type Fitter } from './fit';
 import { createKnob, type Knob } from './knob';
-import { PARAM_SPECS, STRIP_KNOBS } from './params';
+import { MIX_KNOBS, STRIP_KNOBS, specFor, type KnobSpec } from './params';
 
 /**
  * The hardware panel: the faceplate with the five module strips.
  *
- * The panel is built from the engine's own table. The knob column of a
- * strip comes from the parameters the engine supports for that voice, so
+ * The panel is built from the engine's own table. The long knob column of
+ * a strip comes from the parameters the engine supports for that voice, so
  * only the Snare has a Sweep knob, and the ranges of the knobs are the
- * ranges the engine reports.
+ * ranges the engine reports. Beside it stands the shorter column of the
+ * channel: Volume and Pan, the engine's own mixer values, and Sens, the
+ * host's trigger threshold.
  *
  * The panel never keeps a copy of the values: it shows what the engine
  * holds, read back from the engine's own snapshot. A value the engine
@@ -34,17 +35,30 @@ export interface Panel {
   dispose(): void;
 }
 
-interface KnobWidget {
-  readonly param: Param;
-  /** The place of the value in the engine's snapshot. */
-  readonly index: number;
-  readonly knob: Knob;
-}
+/**
+ * A knob of a strip, and the place of its value in the engine's snapshot.
+ */
+type KnobWidget =
+  | {
+      readonly kind: 'param';
+      /** The place of the value in the engine's parameter snapshot. */
+      readonly index: number;
+      readonly knob: Knob;
+      readonly cell: HTMLElement;
+    }
+  | {
+      readonly kind: 'sens';
+      /** The place of the value in the engine's threshold snapshot. */
+      readonly index: number;
+      readonly knob: Knob;
+      readonly cell: HTMLElement;
+    };
 
 interface StripWidgets {
   readonly voice: Voice;
   readonly triggerLamp: HTMLElement;
   readonly knobColumn: HTMLElement;
+  readonly mixColumn: HTMLElement;
   readonly knobs: KnobWidget[];
 }
 
@@ -106,13 +120,22 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
     const knobColumn = document.createElement('div');
     knobColumn.className = 'strip-knobs';
 
-    element.append(head, knobColumn);
+    /* The second, shorter column of the module: the mixer of the channel. */
+    const mixColumn = document.createElement('div');
+    mixColumn.className = 'strip-mix';
+
+    const body = document.createElement('div');
+    body.className = 'strip-body';
+    body.append(knobColumn, mixColumn);
+
+    element.append(head, body);
     faceplate.append(element);
 
     strips.set(voice, {
       voice,
       triggerLamp,
       knobColumn,
+      mixColumn,
       knobs: [],
     });
   }
@@ -125,16 +148,64 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
   let built = false;
 
   /**
+   * Build one knob of a strip.
+   *
+   * The range of a knob of the engine is the range the engine reports; the
+   * sensitivity is the host's own and runs from nothing to everything.
    * The user moved a knob: the value goes to the engine, and the engine
-   * holds it. The panel shows what the engine holds, so a value the
-   * engine clamped is shown clamped.
+   * holds it. The panel shows what the engine holds, so a value the engine
+   * clamped is shown clamped.
    */
-  const onKnobChange = (voice: Voice, param: Param, value: number): void => {
-    engine.setParam(voice, param, toQ16(value));
+  const createWidget = (
+    voice: Voice,
+    spec: KnobSpec,
+    range: { min: number; max: number; default: number },
+  ): KnobWidget => {
+    const meta = specFor(spec);
+    const knob = createKnob({
+      label: meta.label,
+      unit: meta.unit,
+      min: range.min,
+      max: range.max,
+      decimals: meta.decimals,
+      taper: meta.taper,
+      step: meta.step,
+      fineStep: meta.fineStep,
+      value: range.default,
+      onChange: (value) => {
+        if (spec.kind === 'sens') {
+          engine.setSens(voice, toQ16(value));
+        } else {
+          engine.setParam(voice, spec.param, toQ16(value));
+        }
+      },
+    });
+
+    const name = spec.kind === 'sens' ? 'sens' : spec.param;
+    knob.element.dataset.param = name;
+
+    const cell = document.createElement('div');
+    cell.className = 'knob-cell';
+    cell.dataset.param = name;
+
+    const label = document.createElement('span');
+    label.className = 'knob-label';
+    label.textContent = meta.label;
+
+    cell.append(knob.element, label);
+
+    const index =
+      spec.kind === 'sens'
+        ? voiceIndex(voice)
+        : voiceIndex(voice) * PARAM_COUNT + paramIndex(spec.param);
+
+    return spec.kind === 'sens'
+      ? { kind: 'sens', index, knob, cell }
+      : { kind: 'param', index, knob, cell };
   };
 
   /**
-   * Build the knob column of every strip from the engine's own table.
+   * Build the knob columns of every strip from the engine's own table.
    */
   const build = (info: readonly ParamInfo[]): void => {
     if (built) {
@@ -149,6 +220,10 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
       }
 
       for (const spec of STRIP_KNOBS) {
+        if (spec.kind !== 'param') {
+          continue;
+        }
+
         const index = paramIndex(spec.param);
         const entry = findInfo(info, voice, index);
         if (entry === undefined || !entry.supported) {
@@ -157,39 +232,38 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
           continue;
         }
 
-        const meta = PARAM_SPECS[spec.param];
-        const knob = createKnob({
-          label: meta.label,
-          unit: meta.unit,
+        const widget = createWidget(voice, spec, {
           min: fromQ16(entry.min),
           max: fromQ16(entry.max),
-          decimals: meta.decimals,
-          taper: meta.taper,
-          step: meta.step,
-          fineStep: meta.fineStep,
-          value: fromQ16(entry.default),
-          onChange: (value) => {
-            onKnobChange(voice, spec.param, value);
-          },
+          default: fromQ16(entry.default),
         });
-        knob.element.dataset.param = spec.param;
+        strip.knobColumn.append(widget.cell);
+        strip.knobs.push(widget);
+      }
 
-        const cell = document.createElement('div');
-        cell.className = 'knob-cell';
-        cell.dataset.param = spec.param;
+      /* The mixer of the channel, in its own shorter column. */
+      for (const spec of MIX_KNOBS) {
+        let range: { min: number; max: number; default: number };
 
-        const label = document.createElement('span');
-        label.className = 'knob-label';
-        label.textContent = meta.label;
+        if (spec.kind === 'sens') {
+          // The engine has no sensitivity: the threshold is the host's
+          // own, and it starts at nothing, so every hit speaks.
+          range = { min: 0, max: 1, default: 0 };
+        } else {
+          const entry = findInfo(info, voice, paramIndex(spec.param));
+          if (entry === undefined || !entry.supported) {
+            continue;
+          }
+          range = {
+            min: fromQ16(entry.min),
+            max: fromQ16(entry.max),
+            default: fromQ16(entry.default),
+          };
+        }
 
-        cell.append(knob.element, label);
-        strip.knobColumn.append(cell);
-
-        strip.knobs.push({
-          param: spec.param,
-          index: voiceIndex(voice) * PARAM_COUNT + index,
-          knob,
-        });
+        const widget = createWidget(voice, spec, range);
+        strip.mixColumn.append(widget.cell);
+        strip.knobs.push(widget);
       }
     }
 
@@ -203,7 +277,10 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
       }
 
       for (const widget of strip.knobs) {
-        const value = state.values[widget.index] ?? 0;
+        const value =
+          widget.kind === 'param'
+            ? (state.values[widget.index] ?? 0)
+            : (state.sens[widget.index] ?? 0);
         widget.knob.setValue(fromQ16(value));
         widget.knob.element.dataset.value = String(value);
       }

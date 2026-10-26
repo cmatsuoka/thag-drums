@@ -111,24 +111,60 @@ export const PARAM_SPECS: Readonly<Record<Param, ParamSpec>> = {
 };
 
 /**
- * The knob column of a module strip, in the order of the hardware: Noise,
- * Tone, Bend, Decay, Noise/Tone, Click/Drum and Sweep, which only the
- * Snare has, plus Pan, which is the demo's own addition, at the bottom.
+ * The trigger sensitivity of a channel. It is the host's own: the engine
+ * has no velocity input, so the strength of a hit decides whether the
+ * channel speaks, never how loud it is.
+ */
+export const SENS_SPEC: ParamSpec = {
+  label: 'sens',
+  unit: '',
+  taper: 'linear',
+  decimals: 2,
+  step: 0.02,
+  fineStep: 0.002,
+};
+
+/**
+ * A knob of a module strip: either one of the engine's own parameters or
+ * the host's trigger sensitivity.
+ */
+export type KnobSpec =
+  | { readonly kind: 'param'; readonly param: Param }
+  | { readonly kind: 'sens' };
+
+/**
+ * The long knob column of a module strip, in the order of the hardware:
+ * Noise, Tone, Bend, Decay, Noise/Tone, Click/Drum and Sweep, which only
+ * the Snare has.
  *
  * The strip is built from this list and from the engine's own table: a
  * knob the engine does not support is not on the panel.
  */
-export interface KnobSpec {
-  readonly param: Param;
-}
-
 export const STRIP_KNOBS: readonly KnobSpec[] = [
-  { param: 'noisePitch' },
-  { param: 'tonePitch' },
-  { param: 'bend' },
-  { param: 'decay' },
-  { param: 'noiseTone' },
-  { param: 'clickTone' },
-  { param: 'sweep' },
-  { param: 'pan' },
+  { kind: 'param', param: 'noisePitch' },
+  { kind: 'param', param: 'tonePitch' },
+  { kind: 'param', param: 'bend' },
+  { kind: 'param', param: 'decay' },
+  { kind: 'param', param: 'noiseTone' },
+  { kind: 'param', param: 'clickTone' },
+  { kind: 'param', param: 'sweep' },
 ];
+
+/**
+ * The second, shorter column of a module: the mixer of the channel.
+ *
+ * Volume and Pan are the engine's own per-voice mixer values, Sens is the
+ * host's trigger threshold. The three sit together in their own column, so
+ * the sound knobs of the module stay together and the channel's controls
+ * are found in one place.
+ */
+export const MIX_KNOBS: readonly KnobSpec[] = [
+  { kind: 'param', param: 'volume' },
+  { kind: 'param', param: 'pan' },
+  { kind: 'sens' },
+];
+
+/** The label and the scale of a knob. */
+export function specFor(spec: KnobSpec): ParamSpec {
+  return spec.kind === 'sens' ? SENS_SPEC : PARAM_SPECS[spec.param];
+}

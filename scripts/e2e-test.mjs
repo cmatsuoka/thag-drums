@@ -138,6 +138,30 @@ async function readEngineValues(page) {
   });
 }
 
+/**
+ * What the engine holds: the parameters of the voices and the trigger
+ * thresholds, which are the host's own.
+ */
+async function readEngineState(page) {
+  return page.evaluate(() => {
+    const state = window.hive?.engineState;
+    return state === null || state === undefined
+      ? null
+      : {
+          values: Array.from(state.values),
+          sens: Array.from(state.sens ?? []),
+        };
+  });
+}
+
+/** The value the engine holds for a knob of a strip. */
+function stateValue(state, voice, param) {
+  if (param === 'sens') {
+    return state.sens[VOICES.indexOf(voice)];
+  }
+  return state.values[engineIndex(voice, param)];
+}
+
 /** What the panel shows: the value of every knob of every strip. */
 async function readPanelValues(page) {
   return page.evaluate(() => {
@@ -257,7 +281,7 @@ try {
 
   /* The panel: five module strips. */
   await page.waitForFunction(
-    () => document.querySelectorAll('.strip .knob').length === 36,
+    () => document.querySelectorAll('.strip .knob').length === 46,
     undefined,
     { timeout: TIMEOUT },
   );
@@ -271,6 +295,24 @@ try {
     5,
     'every strip has its trigger lamp',
   );
+
+  /* Every module has a second, shorter column: the mixer of the channel. */
+  for (const voice of VOICES) {
+    equal(
+      await page.locator(`.strip[data-voice="${voice}"] .strip-mix .knob`).count(),
+      3,
+      `the ${voice} has a mixer column of three knobs`,
+    );
+    for (const param of ['volume', 'pan', 'sens']) {
+      equal(
+        await page
+          .locator(`.strip[data-voice="${voice}"] .strip-mix .knob[data-param="${param}"]`)
+          .count(),
+        1,
+        `the ${voice} has a ${param} knob in its mixer column`,
+      );
+    }
+  }
 
   /* The knob column comes from the engine's own table: only the Snare has
    * a Sweep knob, and every voice has a Pan knob. */
@@ -298,7 +340,7 @@ try {
 
   /* Every knob is a slider, and its ARIA range is the engine's own. */
   const panel = await readPanelValues(page);
-  const engineValues = await readEngineValues(page);
+  const engineState = await readEngineState(page);
   let roles = 0;
   let ranges = 0;
   let stored = 0;
@@ -310,15 +352,15 @@ try {
       ranges += 1;
     }
     const [voice, param] = key.split('.');
-    if (knob.stored === engineValues[engineIndex(voice, param)]) {
+    if (knob.stored === stateValue(engineState, voice, param)) {
       stored += 1;
     }
   }
-  equal(roles, 36, 'every knob is a slider');
-  equal(ranges, 36, 'every knob carries the range of the engine');
+  equal(roles, 46, 'every knob is a slider');
+  equal(ranges, 46, 'every knob carries the range of its control');
   equal(
     stored,
-    36,
+    46,
     'every knob shows the value the engine stored',
   );
 
@@ -361,28 +403,43 @@ try {
   check(level > 0, `the lamp carries the level of the hit (${level})`);
 
   /* Every knob is operable with the keyboard alone. */
-  const before = await readEngineValues(page);
+  const before = await readEngineState(page);
   const knobs = page.locator('.knob');
   const knobCount = await knobs.count();
   for (let index = 0; index < knobCount; index += 1) {
     await knobs.nth(index).press('ArrowUp');
   }
   await page.waitForTimeout(300);
-  const after = await readEngineValues(page);
+  const after = await readEngineState(page);
   let moved = 0;
-  for (let index = 0; index < before.length; index += 1) {
-    if (before[index] !== after[index]) {
+  for (let index = 0; index < before.values.length; index += 1) {
+    if (before.values[index] !== after.values[index]) {
       moved += 1;
     }
   }
-  equal(moved, knobCount, 'every knob moves with the arrow keys');
+  equal(
+    moved,
+    knobCount - VOICES.length,
+    'every knob of the engine moves with the arrow keys',
+  );
+  let movedSens = 0;
+  for (let index = 0; index < before.sens.length; index += 1) {
+    if (before.sens[index] !== after.sens[index]) {
+      movedSens += 1;
+    }
+  }
+  equal(
+    movedSens,
+    VOICES.length,
+    'every sensitivity knob moves with the arrow keys',
+  );
 
   /* The panel follows the engine. */
   const shown = await readPanelValues(page);
   let inSync = 0;
   for (const [key, knob] of Object.entries(shown)) {
     const [voice, param] = key.split('.');
-    if (knob.stored === after[engineIndex(voice, param)]) {
+    if (knob.stored === stateValue(after, voice, param)) {
       inSync += 1;
     }
   }
@@ -472,6 +529,25 @@ try {
   check(
     (await readPeak(page)) > 0,
     'a full-strength hit plays whatever the sensitivity is',
+  );
+
+  /* The sensitivity knob of the module is the channel's own threshold. */
+  await page.waitForTimeout(500);
+  const kickSens = page.locator('.strip[data-voice="kick"] .knob[data-param="sens"]');
+  await kickSens.press('End');
+  await page.waitForFunction(
+    () => (window.hive?.engineState?.sens?.[0] ?? 0) === 65536,
+    undefined,
+    { timeout: TIMEOUT },
+  );
+  check(true, 'the sensitivity knob reaches the engine');
+  await page.evaluate(() => {
+    window.hive?.trigger('kick', 0.5 * 65536);
+  });
+  await page.waitForTimeout(300);
+  check(
+    (await readPeak(page)) === 0,
+    'the sensitivity knob silences the channel for soft hits',
   );
 
   equal(consoleErrors.length, 0, 'the page logs no errors');

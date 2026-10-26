@@ -306,6 +306,9 @@ class HiveProcessor extends AudioWorkletProcessor {
       }
       case 'reset': {
         module._hive_reset(this.context);
+        // The sensitivity is the host's own: the reset puts it back to
+        // the factory value as well, so every channel speaks again.
+        this.thresholds.fill(0);
         break;
       }
     }
@@ -439,6 +442,7 @@ class HiveProcessor extends AudioWorkletProcessor {
         supported: this.supported,
         sounding: this.sounding,
         levels: this.levels,
+        sens: this.thresholds,
         version: this.version,
         active: this.active,
         peak: this.peak,

@@ -107,6 +107,12 @@ export interface EngineState {
    * the level of the mix right after that voice was hit.
    */
   readonly levels: Uint8Array;
+  /**
+   * The trigger threshold of every voice, in Q16.16. The engine has no
+   * velocity input, so the threshold is the host's own: the worklet holds
+   * it next to the engine, and the panel reads it back from here.
+   */
+  readonly sens: Int32Array;
   /** The version of the linked library, packed as 0x00MMmmpp. */
   readonly version: number;
   /** True while any voice is still sounding. */
