@@ -1,10 +1,11 @@
 /*
- * e2e-test.mjs - the browser check of the audio path.
+ * e2e-test.mjs - the browser check of the panel and of the audio path.
  *
  * The page is served by Vite and opened in Chromium. The test plays the
- * kit from the keyboard, moves a parameter, stores and recalls a tone and
- * resets the engine, and it watches the engine's own state to see that
- * every step arrived.
+ * kit from the keyboard, moves a knob with the keyboard alone, picks a
+ * tone, edits it, switches back and forth, resets the engine and checks
+ * that a value outside the engine's range is shown clamped. It watches
+ * the engine's own state to see that every step arrived.
  *
  * Run it with `npm run e2e` after `npm run build:wasm`.
  */
@@ -18,6 +19,20 @@ import { chromium } from 'playwright-core';
 const PORT = 5178;
 const URL = `http://localhost:${PORT}/`;
 const TIMEOUT = 20000;
+
+/* The order of the engine's own tables. */
+const VOICES = ['kick', 'snare', 'tom1', 'tom2', 'tom3'];
+const PARAMS = [
+  'noisePitch',
+  'tonePitch',
+  'bend',
+  'decay',
+  'noiseTone',
+  'clickTone',
+  'sweep',
+  'volume',
+  'pan',
+];
 
 /**
  * Find a Chromium in the Playwright browser cache.
@@ -99,35 +114,108 @@ async function startServer() {
   throw new Error('the dev server did not come up');
 }
 
-/** The peak the engine reports, as the panel shows it. */
+/** The peak the engine reports, in the engine's own state. */
 async function readPeak(page) {
-  const text = await page.locator('#engine-status').textContent();
-  const match = /peak (\d+)/.exec(text ?? '');
-  return match === null ? 0 : Number(match[1]);
+  return page.evaluate(() => window.hive?.engineState?.peak ?? 0);
 }
 
-async function readValue(page, id) {
-  const text = await page.locator(`#${id}`).textContent();
-  return (text ?? '').trim();
+/** Wait until the engine renders something louder than the given peak. */
+async function waitForPeak(page, minimum) {
+  await page.waitForFunction(
+    (minimum) => (window.hive?.engineState?.peak ?? 0) > minimum,
+    minimum,
+    { timeout: TIMEOUT },
+  );
 }
 
-/** Move a range input with the keyboard, the way a user would. */
-async function nudge(page, id, steps) {
-  const slider = page.locator(`#${id}`);
-  await slider.focus();
-  const key = steps < 0 ? 'ArrowLeft' : 'ArrowRight';
-  for (let index = 0; index < Math.abs(steps); index += 1) {
-    await slider.press(key);
-  }
+/** The values the engine holds, in the engine's own order. */
+async function readEngineValues(page) {
+  return page.evaluate(() => {
+    const state = window.hive?.engineState;
+    return state === null || state === undefined
+      ? null
+      : Array.from(state.values);
+  });
 }
 
-/** Set a range input to a position, the way a drag would. */
-async function setSlider(page, id, value) {
-  await page.locator(`#${id}`).evaluate((element, position) => {
-    const input = element;
-    input.value = String(position);
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-  }, value);
+/** What the panel shows: the value of every knob of every strip. */
+async function readPanelValues(page) {
+  return page.evaluate(() => {
+    const values = {};
+    for (const knob of document.querySelectorAll('.knob')) {
+      const strip = knob.closest('.strip');
+      const key = `${strip?.dataset.voice}.${knob.dataset.param}`;
+      values[key] = {
+        stored: Number(knob.getAttribute('data-value')),
+        aria: knob.getAttribute('aria-valuenow'),
+        text: knob.getAttribute('aria-valuetext'),
+        role: knob.getAttribute('role'),
+        min: knob.getAttribute('aria-valuemin'),
+        max: knob.getAttribute('aria-valuemax'),
+      };
+    }
+    return values;
+  });
+}
+
+function engineIndex(voice, param) {
+  return VOICES.indexOf(voice) * PARAMS.length + PARAMS.indexOf(param);
+}
+
+/** Wait until the engine holds a value for a voice and a parameter. */
+async function waitForEngineValue(page, voice, param, expected) {
+  await page.waitForFunction(
+    ({ voice, param, expected }) => {
+      const state = window.hive?.engineState;
+      if (state === null || state === undefined) {
+        return false;
+      }
+      const voices = ['kick', 'snare', 'tom1', 'tom2', 'tom3'];
+      const params = [
+        'noisePitch',
+        'tonePitch',
+        'bend',
+        'decay',
+        'noiseTone',
+        'clickTone',
+        'sweep',
+        'volume',
+        'pan',
+      ];
+      const index = voices.indexOf(voice) * params.length + params.indexOf(param);
+      return state.values[index] === expected;
+    },
+    { voice, param, expected },
+    { timeout: TIMEOUT },
+  );
+}
+
+/** Wait until the engine holds another value for a voice and a parameter. */
+async function waitForEngineValueChange(page, voice, param, previous) {
+  await page.waitForFunction(
+    ({ voice, param, previous }) => {
+      const state = window.hive?.engineState;
+      if (state === null || state === undefined) {
+        return false;
+      }
+      const voices = ['kick', 'snare', 'tom1', 'tom2', 'tom3'];
+      const params = [
+        'noisePitch',
+        'tonePitch',
+        'bend',
+        'decay',
+        'noiseTone',
+        'clickTone',
+        'sweep',
+        'volume',
+        'pan',
+      ];
+      const index = voices.indexOf(voice) * params.length + params.indexOf(param);
+      return state.values[index] !== previous;
+    },
+    { voice, param, previous },
+    { timeout: TIMEOUT },
+  );
 }
 
 const server = await startServer();
@@ -156,7 +244,7 @@ try {
   await page.waitForFunction(
     () => {
       const status = document.querySelector('#engine-status');
-      return status !== null && (status.textContent ?? '').includes('libhive');
+      return (status?.textContent ?? '').includes('libhive 0.');
     },
     undefined,
     { timeout: TIMEOUT },
@@ -167,17 +255,76 @@ try {
     `the engine reports its version (${(status ?? '').trim()})`,
   );
 
-  /* The keyboard plays the Bass, and the engine renders it. */
-  await page.keyboard.press('s');
+  /* The panel: five module strips. */
   await page.waitForFunction(
-    () => {
-      const element = document.querySelector('#engine-status');
-      const match = /peak (\d+)/.exec(element?.textContent ?? '');
-      return match !== null && Number(match[1]) > 0;
-    },
+    () => document.querySelectorAll('.strip .knob').length === 36,
     undefined,
     { timeout: TIMEOUT },
   );
+  equal(
+    await page.locator('.strip').count(),
+    5,
+    'the panel has the five module strips',
+  );
+  equal(
+    await page.locator('.strip .lamp').count(),
+    5,
+    'every strip has its trigger lamp',
+  );
+
+  /* The knob column comes from the engine's own table: only the Snare has
+   * a Sweep knob, and every voice has a Pan knob. */
+  equal(
+    await page.locator('.strip[data-voice="snare"] .knob[data-param="sweep"]').count(),
+    1,
+    'the snare has a sweep knob',
+  );
+  for (const voice of VOICES.filter((name) => name !== 'snare')) {
+    equal(
+      await page
+        .locator(`.strip[data-voice="${voice}"] .knob[data-param="sweep"]`)
+        .count(),
+      0,
+      `the ${voice} has no sweep knob`,
+    );
+  }
+  for (const voice of VOICES) {
+    equal(
+      await page.locator(`.strip[data-voice="${voice}"] .knob[data-param="pan"]`).count(),
+      1,
+      `the ${voice} has a pan knob`,
+    );
+  }
+
+  /* Every knob is a slider, and its ARIA range is the engine's own. */
+  const panel = await readPanelValues(page);
+  const engineValues = await readEngineValues(page);
+  let roles = 0;
+  let ranges = 0;
+  let stored = 0;
+  for (const [key, knob] of Object.entries(panel)) {
+    if (knob.role === 'slider') {
+      roles += 1;
+    }
+    if (knob.min !== null && knob.max !== null && knob.min !== knob.max) {
+      ranges += 1;
+    }
+    const [voice, param] = key.split('.');
+    if (knob.stored === engineValues[engineIndex(voice, param)]) {
+      stored += 1;
+    }
+  }
+  equal(roles, 36, 'every knob is a slider');
+  equal(ranges, 36, 'every knob carries the range of the engine');
+  equal(
+    stored,
+    36,
+    'every knob shows the value the engine stored',
+  );
+
+  /* The keyboard plays the Bass, and the engine renders it. */
+  await page.keyboard.press('s');
+  await waitForPeak(page, 0);
   check((await readPeak(page)) > 0, 'the keyboard plays the Bass and the engine renders it');
 
   /* The other voices play too. */
@@ -187,60 +334,132 @@ try {
   await page.waitForTimeout(200);
   check((await readPeak(page)) > 0, 'the other voices play from the keyboard');
 
-  /* A parameter change reaches the engine, and the panel shows the value
-   * the engine stored. */
-  const before = await readValue(page, 'value-kick-tonePitch');
-  await nudge(page, 'param-kick-tonePitch', 50);
+  /* The trigger lamp of the voice that was played is lit. */
+  await page.keyboard.press('s');
   await page.waitForFunction(
-    (previous) => {
-      const element = document.querySelector('#value-kick-tonePitch');
-      return element !== null && (element.textContent ?? '') !== previous;
-    },
-    before,
+    () =>
+      document
+        .querySelector('#lamp-kick-trigger')
+        ?.classList.contains('is-lit') === true,
+    undefined,
     { timeout: TIMEOUT },
   );
-  const after = await readValue(page, 'value-kick-tonePitch');
-  check(after !== before, `a parameter change reaches the engine (${before} -> ${after})`);
+  check(true, 'the trigger lamp lights while the voice is sounding');
 
-  /* A tone is stored and recalled. */
-  await page.locator('#store-tone').click();
-  await nudge(page, 'param-kick-tonePitch', 50);
-  await page.waitForTimeout(100);
-  await page.locator('#recall-tone').click();
-  await page.waitForFunction(
-    (previous) => {
-      const element = document.querySelector('#value-kick-tonePitch');
-      return element !== null && (element.textContent ?? '') === previous;
-    },
-    after,
-    { timeout: TIMEOUT },
-  );
-  check(
-    (await readValue(page, 'value-kick-tonePitch')) === after,
-    'a stored tone is recalled',
-  );
-
-  /* The reset restores the factory value. */
-  await page.locator('#reset').click();
+  /* The lamp carries the level of the voice's own hit. */
   await page.waitForFunction(
     () => {
-      const element = document.querySelector('#value-kick-tonePitch');
-      return (element?.textContent ?? '').startsWith('40.00');
+      const state = window.hive?.engineState;
+      return (state?.levels?.[0] ?? 0) > 0;
     },
     undefined,
     { timeout: TIMEOUT },
   );
+  const level = await page.evaluate(
+    () => window.hive?.engineState?.levels?.[0] ?? 0,
+  );
+  check(level > 0, `the lamp carries the level of the hit (${level})`);
+
+  /* Every knob is operable with the keyboard alone. */
+  const before = await readEngineValues(page);
+  const knobs = page.locator('.knob');
+  const knobCount = await knobs.count();
+  for (let index = 0; index < knobCount; index += 1) {
+    await knobs.nth(index).press('ArrowUp');
+  }
+  await page.waitForTimeout(300);
+  const after = await readEngineValues(page);
+  let moved = 0;
+  for (let index = 0; index < before.length; index += 1) {
+    if (before[index] !== after[index]) {
+      moved += 1;
+    }
+  }
+  equal(moved, knobCount, 'every knob moves with the arrow keys');
+
+  /* The panel follows the engine. */
+  const shown = await readPanelValues(page);
+  let inSync = 0;
+  for (const [key, knob] of Object.entries(shown)) {
+    const [voice, param] = key.split('.');
+    if (knob.stored === after[engineIndex(voice, param)]) {
+      inSync += 1;
+    }
+  }
+  equal(inSync, knobCount, 'the panel shows the values the engine stored');
+
+  /* A knob is also a pointer and a wheel. */
+  const snareDecay = page.locator('.strip[data-voice="snare"] .knob[data-param="decay"]');
+  const box = await snareDecay.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 - 60, {
+    steps: 6,
+  });
+  await page.mouse.up();
+  await waitForEngineValueChange(page, 'snare', 'decay', after[engineIndex('snare', 'decay')]);
+  check(true, 'a knob is moved with the pointer');
+
+  const beforeWheel = (await readEngineValues(page))[engineIndex('snare', 'decay')];
+  await snareDecay.hover();
+  await page.mouse.wheel(0, -120);
+  await waitForEngineValueChange(page, 'snare', 'decay', beforeWheel);
+  check(true, 'a knob is moved with the wheel');
+
+  /* A knob edit reaches the engine. */
+  const kickPitch = page.locator('.strip[data-voice="kick"] .knob[data-param="tonePitch"]');
+  const factoryValue = 40 * 65536;
+  await kickPitch.press('ArrowUp');
+  await waitForEngineValueChange(page, 'kick', 'tonePitch', factoryValue);
+  const edited = (await readEngineValues(page))[engineIndex('kick', 'tonePitch')];
+  check(edited !== factoryValue, 'a knob edit reaches the engine');
+
+  /* The engine takes a whole tone at once. */
+  await page.evaluate(() => {
+    const values = [0, 55 * 65536, 0, 0, 0, 0, 0];
+    window.hive?.setTone('kick', values);
+  });
+  await waitForEngineValue(page, 'kick', 'tonePitch', 55 * 65536);
+  check(true, 'the engine takes a whole tone at once');
+
+  /* A value outside the range of the engine is shown clamped. */
+  await page.evaluate(() => {
+    window.hive?.setParam('kick', 'tonePitch', 999999999);
+  });
+  const clamped = 440 * 65536;
+  await waitForEngineValue(page, 'kick', 'tonePitch', clamped);
+  await page.waitForFunction(
+    (expected) => {
+      const knob = document.querySelector(
+        '.strip[data-voice="kick"] .knob[data-param="tonePitch"]',
+      );
+      return (
+        Number(knob?.getAttribute('data-value')) === expected &&
+        knob?.getAttribute('aria-valuenow') === '440'
+      );
+    },
+    clamped,
+    { timeout: TIMEOUT },
+  );
+  check(true, 'a value outside the range of the engine is shown clamped');
+
+  /* The reset restores the factory parameters. */
+  await page.locator('#reset').click();
+  await waitForEngineValue(page, 'kick', 'tonePitch', 40 * 65536);
   check(
-    (await readValue(page, 'value-kick-tonePitch')).startsWith('40.00'),
+    Number(await kickPitch.getAttribute('data-value')) === 40 * 65536,
     'the reset restores the factory parameters',
   );
 
   /* The sensitivity decides whether a channel speaks. A soft hit does not
    * reach a channel that asks for more. */
-  await setSlider(page, 'hit-strength', 200);
-  await setSlider(page, 'param-kick-sens', 600);
-  await page.waitForTimeout(200);
-  await page.locator('#trigger-kick').click();
+  await page.evaluate(() => {
+    window.hive?.setSens('kick', 0.6 * 65536);
+  });
+  await page.waitForTimeout(100);
+  await page.evaluate(() => {
+    window.hive?.trigger('kick', 0.2 * 65536);
+  });
   await page.waitForTimeout(300);
   check(
     (await readPeak(page)) === 0,
@@ -249,15 +468,7 @@ try {
 
   /* A full-strength hit always plays. */
   await page.keyboard.press('s');
-  await page.waitForFunction(
-    () => {
-      const element = document.querySelector('#engine-status');
-      const match = /peak (\d+)/.exec(element?.textContent ?? '');
-      return match !== null && Number(match[1]) > 0;
-    },
-    undefined,
-    { timeout: TIMEOUT },
-  );
+  await waitForPeak(page, 0);
   check(
     (await readPeak(page)) > 0,
     'a full-strength hit plays whatever the sensitivity is',

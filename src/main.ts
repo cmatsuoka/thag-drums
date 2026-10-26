@@ -1,7 +1,19 @@
 import { HiveEngine } from './audio/engine';
 import { attachKeyboard } from './audio/keyboard';
 import { MidiInput } from './audio/midi';
-import { createHarness } from './ui/harness';
+import { createDemoStrip, type DemoStrip } from './ui/demo-strip';
+import { createPanel } from './ui/panel';
+
+/*
+ * The engine itself lives in the worklet, but the facade is the demo's
+ * own handle on it: the browser console and the end-to-end test use it to
+ * reach the engine, which the panel does not offer on its own.
+ */
+declare global {
+  interface Window {
+    hive?: HiveEngine;
+  }
+}
 
 /**
  * The application: the engine, the trigger sources and the panel.
@@ -17,16 +29,17 @@ if (app === null) {
 }
 
 const engine = new HiveEngine();
-const harness = createHarness(app, engine);
 
-engine.onError((message) => {
-  harness.showError(message);
-});
+/* The page's heading. The console carries the module strips, and their
+ * names are the headings below it. */
+const heading = document.createElement('h1');
+heading.className = 'visually-hidden';
+heading.textContent = 'libhive-demo';
+app.append(heading);
 
-/* The keyboard is the practical way to play. */
-attachKeyboard((instrument, strength) => {
-  engine.trigger(instrument, strength);
-});
+const panel = createPanel(app, engine);
+
+let demo: DemoStrip | null = null;
 
 /* A MIDI controller may be connected; the velocity is the hit strength. */
 const midi = new MidiInput({
@@ -34,16 +47,29 @@ const midi = new MidiInput({
     engine.trigger(instrument, strength);
   },
   onDevices: (devices) => {
-    harness.setMidiDevices(devices);
+    demo?.setMidiDevices(devices);
   },
   onError: (message) => {
-    harness.showError(message);
+    demo?.showError(message);
   },
 });
 
-const midiButton = document.querySelector<HTMLButtonElement>('#midi-connect');
-midiButton?.addEventListener('click', () => {
-  void midi.connect();
+demo = createDemoStrip(app, engine, {
+  onReset: () => {
+    panel.reset();
+  },
+  onMidiConnect: () => {
+    void midi.connect();
+  },
+});
+
+engine.onError((message) => {
+  demo?.showError(message);
+});
+
+/* The keyboard is the practical way to play. */
+attachKeyboard((instrument, strength) => {
+  engine.trigger(instrument, strength);
 });
 
 /* The graph is built while the page loads. */
@@ -55,3 +81,5 @@ const wake = (): void => {
 };
 window.addEventListener('pointerdown', wake);
 window.addEventListener('keydown', wake);
+
+window.hive = engine;

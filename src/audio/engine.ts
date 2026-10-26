@@ -45,6 +45,7 @@ export class HiveEngine {
   private state: EngineState | null = null;
   private info: ParamInfo[] = [];
   private readonly stateListeners = new Set<(state: EngineState) => void>();
+  private readonly readyListeners = new Set<(info: readonly ParamInfo[]) => void>();
   private readonly errorListeners = new Set<(message: string) => void>();
   private readonly pending: EngineCommand[] = [];
   // A missing worklet is not something a retry can fix, so the failure is
@@ -91,6 +92,23 @@ export class HiveEngine {
     this.stateListeners.add(listener);
     return () => {
       this.stateListeners.delete(listener);
+    };
+  }
+
+  /**
+   * The engine's parameter table has arrived.
+   *
+   * The panel is built from that table: the ranges of the knobs and the
+   * pairs the engine supports. A listener that subscribes after the engine
+   * is up is called right away.
+   */
+  onReady(listener: (info: readonly ParamInfo[]) => void): () => void {
+    this.readyListeners.add(listener);
+    if (this.info.length > 0) {
+      listener(this.info);
+    }
+    return () => {
+      this.readyListeners.delete(listener);
     };
   }
 
@@ -343,6 +361,9 @@ export class HiveEngine {
     switch (event.type) {
       case 'ready': {
         this.info = event.info;
+        for (const listener of this.readyListeners) {
+          listener(this.info);
+        }
         break;
       }
       case 'state': {

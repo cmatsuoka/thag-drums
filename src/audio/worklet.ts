@@ -5,14 +5,20 @@ import createHiveModule, {
 } from '../../build/hive.mjs';
 import {
   PARAM_COUNT,
+  Q16_ONE,
   SOUND_PARAM_COUNT,
   VOICE_COUNT,
+  paramIndex,
   type EngineCommand,
   type EngineEvent,
   type ParamInfo,
 } from './protocol';
 
 const BLOCK_FRAMES = 128;
+
+/* The number of blocks the level of a hit is measured over: the onset of
+ * a voice is a few milliseconds long, and the block is 2.7. */
+const LEVEL_BLOCKS = 4;
 
 /* The state is posted about twenty times a second, and right after every
  * change, so the panel always shows the engine's own values. */
@@ -61,6 +67,20 @@ class HiveProcessor extends AudioWorkletProcessor {
   private readonly values = new Int32Array(VOICE_COUNT * PARAM_COUNT);
   private readonly supported = new Uint8Array(VOICE_COUNT * PARAM_COUNT);
 
+  /* The trigger lamps. The engine has no per-voice activity query, so a
+   * lamp is lit by the trigger itself and is cleared when the decay time
+   * of that voice has passed, or when the whole kit goes idle. */
+  private readonly sounding = new Uint8Array(VOICE_COUNT);
+  private readonly soundingUntil = new Float64Array(VOICE_COUNT);
+
+  /* The level of every voice's own last hit. The engine mixes the five
+   * voices into one signal and hands out nothing else, so the level of a
+   * single voice is the level of the mix right after that voice was
+   * hit: the mix is measured over the first blocks of the hit. */
+  private readonly levels = new Uint8Array(VOICE_COUNT);
+  private readonly measuring = new Uint8Array(VOICE_COUNT);
+  private readonly measured = new Float64Array(VOICE_COUNT);
+
   /* The trigger sensitivity of every channel. The engine has no velocity
    * input, so this is the host's own: a hit below the threshold does not
    * make the channel speak. */
@@ -71,6 +91,7 @@ class HiveProcessor extends AudioWorkletProcessor {
   private peak = 0;
   private sinceState = 0;
   private dirty = true;
+  private frames = 0;
 
   constructor(options: WorkletOptions) {
     super(options);
@@ -137,6 +158,9 @@ class HiveProcessor extends AudioWorkletProcessor {
     }
 
     this.sinceState += BLOCK_FRAMES;
+    this.frames += BLOCK_FRAMES;
+    this.updateLamps();
+    this.measureLevels();
     if (this.dirty || this.sinceState >= STATE_INTERVAL) {
       this.sinceState = 0;
       this.dirty = false;
@@ -273,6 +297,7 @@ class HiveProcessor extends AudioWorkletProcessor {
           break;
         }
         module._hive_trigger(this.context, command.instrument);
+        this.lightLamp(command.instrument);
         break;
       }
       case 'sens': {
@@ -288,6 +313,58 @@ class HiveProcessor extends AudioWorkletProcessor {
     this.dirty = true;
     this.readState();
     this.postState();
+  }
+
+  /**
+   * Light the trigger lamp of a voice.
+   *
+   * The engine has no per-voice activity query, so the lamp follows the
+   * trigger and the decay time of the voice: the voice sounds for as long
+   * as its decay lasts, and the lamp goes out with it.
+   */
+  private lightLamp(instrument: number): void {
+    const decay = this.values[instrument * PARAM_COUNT + paramIndex('decay')] ?? 0;
+    const seconds = decay / Q16_ONE;
+    this.sounding[instrument] = 1;
+    this.soundingUntil[instrument] = this.frames + seconds * sampleRate;
+    // The level of the hit is measured over the blocks that follow.
+    this.measuring[instrument] = LEVEL_BLOCKS;
+    this.measured[instrument] = 0;
+  }
+
+  /**
+   * Measure the level of the hits that are waiting for their first blocks.
+   *
+   * The engine mixes the voices into one signal, so this is the level of
+   * the mix right after the voice was hit. It is the level of that hit as
+   * long as the voice is the only one that sounds.
+   */
+  private measureLevels(): void {
+    for (let voice = 0; voice < VOICE_COUNT; voice += 1) {
+      const left = this.measuring[voice] ?? 0;
+      if (left === 0) {
+        continue;
+      }
+      const peak = this.peak / 32768;
+      const highest = Math.max(this.measured[voice] ?? 0, peak);
+      this.measured[voice] = highest;
+      this.measuring[voice] = left - 1;
+      if (left === 1) {
+        this.levels[voice] = Math.min(255, Math.round(highest * 255));
+      }
+    }
+  }
+
+  /**
+   * Clear the lamps of the voices whose decay time has passed.
+   */
+  private updateLamps(): void {
+    for (let voice = 0; voice < VOICE_COUNT; voice += 1) {
+      const until = this.soundingUntil[voice] ?? 0;
+      if (this.sounding[voice] === 1 && this.frames >= until) {
+        this.sounding[voice] = 0;
+      }
+    }
   }
 
   /**
@@ -346,6 +423,12 @@ class HiveProcessor extends AudioWorkletProcessor {
     }
 
     this.active = module._hive_is_active(this.context) !== 0;
+
+    // A kit that has gone quiet is not sounding any more, whatever the
+    // decay times say.
+    if (!this.active) {
+      this.sounding.fill(0);
+    }
   }
 
   private postState(): void {
@@ -354,6 +437,8 @@ class HiveProcessor extends AudioWorkletProcessor {
       state: {
         values: this.values,
         supported: this.supported,
+        sounding: this.sounding,
+        levels: this.levels,
         version: this.version,
         active: this.active,
         peak: this.peak,

@@ -95,6 +95,18 @@ export interface EngineState {
   readonly values: Int32Array;
   /** 1 where the engine supports the voice and the parameter. */
   readonly supported: Uint8Array;
+  /**
+   * 1 while the voice is still sounding. The engine has no per-voice
+   * activity query, so the worklet derives it from the trigger and from
+   * the decay time of the voice.
+   */
+  readonly sounding: Uint8Array;
+  /**
+   * The level of the voice's own last hit, from 0 to 255. The engine
+   * mixes the voices into one signal, so the level of a single voice is
+   * the level of the mix right after that voice was hit.
+   */
+  readonly levels: Uint8Array;
   /** The version of the linked library, packed as 0x00MMmmpp. */
   readonly version: number;
   /** True while any voice is still sounding. */

@@ -1,107 +1,441 @@
 :root {
   --ink: #1b1d1f;
-  --paper: #d9d6cf;
-  --panel: #c8c5bd;
+  --paper: #d6d3cb;
   --accent: #8c1c13;
-  --line: #9d9a92;
+  --focus: #1a63c4;
+
+  /* the faceplate of the console */
+  --plate-width: 1080px;
+  --plate-edge: #71767a;
+  --plate-hi: #e9eced;
+  --plate-mid: #dadde0;
+  --plate-lo: #c6cacd;
+  --plate-ink: #14171a;
+  --lamp-off: #5d1a15;
+  --lamp-on: #ff4a33;
+
+  /* the case the module plates are screwed into */
+  --case-hi: #3a3e42;
+  --case-mid: #2a2d30;
+  --case-lo: #1d2022;
+  --case-edge: #131618;
 }
 
 * {
   box-sizing: border-box;
 }
 
+/*
+ * The faces of the panel.
+ *
+ * Josefin Sans, for the printed names of the modules: the Latin subset of
+ * the weight 200. The names of the real machine are painted by hand, and
+ * they are narrow and hairline, where a Futura is wide and even — the
+ * names of the panel are a narrow geometric face, closer to the paint.
+ * Josefin Sans is under the SIL Open Font License 1.1; the notice is in
+ * src/fonts/OFL-josefin.txt.
+ *
+ * Figtree, for the labels of the knobs: the Latin subset of the weight
+ * 300. The labels of the real machine are a third face of their own, a
+ * light narrow grotesque, and not a geometric one. Figtree is under the
+ * SIL Open Font License 1.1; the notice is in src/fonts/OFL-figtree.txt.
+ *
+ * Jost, for the branding panel: the Latin subset of the weight 300. The
+ * mark of the machine is the one thing on the faceplate that is a Futura,
+ * and the branding panel is the mark of the demo. Jost is under the SIL
+ * Open Font License 1.1; the notice is in src/fonts/OFL.txt. Its subset
+ * keeps the layout features of the font, the stylistic set 01 among them:
+ * it swaps the lowercase `a` for a wider `a.alt`. A stylistic set has no
+ * property of its own in CSS, so it is turned on with
+ * `font-feature-settings: "ss01" 1`.
+ */
+@font-face {
+  font-family: "Josefin Sans";
+  font-style: normal;
+  font-weight: 200;
+  font-display: swap;
+  src: url("./fonts/josefin-latin-200-normal.woff2") format("woff2");
+  unicode-range: U+0000-00ff, U+0131, U+0152-0153, U+02bb-02bc, U+02c6,
+    U+02da, U+02dc, U+0304, U+0308, U+0329, U+2000-206f, U+20ac, U+2122,
+    U+2191, U+2193, U+2212, U+2215, U+feff, U+fffd;
+}
+
+@font-face {
+  font-family: "Figtree";
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url("./fonts/figtree-latin-300-normal.woff2") format("woff2");
+  unicode-range: U+0000-00ff, U+0131, U+0152-0153, U+02bb-02bc, U+02c6,
+    U+02da, U+02dc, U+0304, U+0308, U+0329, U+2000-206f, U+20ac, U+2122,
+    U+2191, U+2193, U+2212, U+2215, U+feff, U+fffd;
+}
+
+@font-face {
+  font-family: "Jost";
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url("./fonts/jost-latin-300-normal.woff2") format("woff2");
+  unicode-range: U+0000-00ff, U+0131, U+0152-0153, U+02bb-02bc, U+02c6,
+    U+02da, U+02dc, U+0304, U+0308, U+0329, U+2000-206f, U+20ac, U+2122,
+    U+2191, U+2193, U+2212, U+2215, U+feff, U+fffd;
+}
+
+/* For the text that is there for the assistive technology only. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 body {
   margin: 0;
-  padding: 2rem;
-  background: var(--paper);
+  padding: 1.25rem 1.5rem 2rem;
+  background: radial-gradient(circle at 50% 0%, #e3e0d8, var(--paper) 65%);
   color: var(--ink);
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
-h1 {
-  margin: 0 0 0.25rem;
-  font-size: 1.4rem;
-  letter-spacing: 0.08em;
+/* The console keeps the shape of the hardware: it is scaled down, never
+ * folded. The host holds the space the scaled console needs. */
+.console-fit {
+  position: relative;
+  margin: 0 auto;
+  max-width: var(--plate-width);
 }
 
-.harness-note {
-  margin: 0 0 1rem;
-  max-width: 40rem;
-  line-height: 1.5;
+/* the case that holds the module plates */
+.faceplate {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--plate-width);
+  padding: 14px;
+  display: flex;
+  align-items: stretch;
+  /* The plates stand side by side and close the opening of the case: there
+   * is no gap between them, only the rim of the case around them. */
+  gap: 0;
+  /* The console is scaled from its top left corner, so that the fitter
+   * can place it in the middle of the space it has. */
+  transform-origin: top left;
+  background: linear-gradient(
+    180deg,
+    var(--case-hi) 0%,
+    var(--case-mid) 55%,
+    var(--case-lo) 100%
+  );
+  border: 1px solid var(--case-edge);
+  border-radius: 10px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -3px 8px rgba(0, 0, 0, 0.55),
+    0 22px 44px rgba(28, 28, 30, 0.34);
+}
+
+/* the corner screws of a module plate */
+.screw {
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 28%, #e2e5e6, #979ca0 58%, #6d7275);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(0, 0, 0, 0.15);
+}
+
+.screw::after {
+  content: "";
+  position: absolute;
+  inset: 4px 1.5px;
+  background: #5c6165;
+  border-radius: 1px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.screw-tl {
+  top: 6px;
+  left: 6px;
+}
+
+.screw-tr {
+  top: 6px;
+  right: 6px;
+}
+
+.screw-bl {
+  bottom: 6px;
+  left: 6px;
+}
+
+.screw-br {
+  bottom: 6px;
+  right: 6px;
+}
+
+/* one module: a plate of its own, closing the opening of the case */
+.strip {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  /* The padding keeps the print clear of the screws in the corners, and
+   * leaves the name some air under the screws. */
+  padding: 29px 20px 19px;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.03) 0 1px,
+      rgba(0, 0, 0, 0.028) 1px 2px
+    ),
+    linear-gradient(180deg, var(--plate-hi) 0%, var(--plate-mid) 38%, var(--plate-lo) 100%);
+  border: 1px solid var(--plate-edge);
+  border-radius: 0;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.22),
+    0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+/* Two plates meet: the seam between them is a single line, the edge of
+ * the plate on the right. */
+.strip + .strip {
+  border-left: none;
+}
+
+/* The row of plates is closed at its two ends. */
+.strip:first-of-type {
+  border-radius: 3px 0 0 3px;
+}
+
+.strip:last-of-type {
+  border-radius: 0 3px 3px 0;
+}
+
+.strip-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.strip-name {
+  margin: 0;
+  font-family: "Josefin Sans", "Futura Light", "Century Gothic", system-ui,
+    sans-serif;
+  font-size: 24px;
+  font-weight: 200;
+  letter-spacing: 0.005em;
+  text-transform: uppercase;
+  color: var(--plate-ink);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.strip-lamps {
+  display: flex;
+  gap: 7px;
+}
+
+/* the indicator lamps */
+.lamp {
+  --lamp-level: 0.35;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 28%, #8c3a33, var(--lamp-off) 72%);
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.7),
+    0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+.lamp.is-lit {
+  background: radial-gradient(circle at 34% 28%, #ffb9ac, var(--lamp-on) 66%);
+  opacity: calc(0.5 + 0.5 * var(--lamp-level));
+  box-shadow:
+    0 0 calc(3px + 9px * var(--lamp-level)) rgba(255, 74, 51, 0.85),
+    inset 0 1px 2px rgba(255, 255, 255, 0.5),
+    0 1px 0 rgba(255, 255, 255, 0.35);
+  animation: lamp-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes lamp-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 calc(2px + 8px * var(--lamp-level)) rgba(255, 74, 51, 0.8),
+      inset 0 1px 2px rgba(255, 255, 255, 0.5),
+      0 1px 0 rgba(255, 255, 255, 0.35);
+  }
+
+  50% {
+    box-shadow:
+      0 0 calc(4px + 13px * var(--lamp-level)) rgba(255, 74, 51, 1),
+      inset 0 1px 2px rgba(255, 255, 255, 0.5),
+      0 1px 0 rgba(255, 255, 255, 0.35);
+  }
+}
+
+/* the knob column */
+.strip-knobs {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  margin-top: 2px;
+}
+
+.knob-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+
+.knob-label {
+  font-family: "Figtree", "Helvetica Neue", Helvetica, Arial, system-ui,
+    sans-serif;
+  font-size: 16px;
+  font-weight: 300;
+  letter-spacing: 0.02em;
+  color: var(--plate-ink);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.55);
+  white-space: nowrap;
+}
+
+/* the knob itself: a dark bezel with a pointer line */
+.knob {
+  --knob-pos: 0.5;
+  position: relative;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  cursor: ns-resize;
+  touch-action: none;
+  background: radial-gradient(
+    circle at 50% 26%,
+    #6a6f72 0%,
+    #3a3e41 38%,
+    #222527 72%,
+    #141618 100%
+  );
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    inset 0 -3px 5px rgba(0, 0, 0, 0.55);
+}
+
+.knob::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background-image: linear-gradient(to bottom, #f4f6f7, #cfd4d6);
+  background-repeat: no-repeat;
+  background-position: center top;
+  background-size: 3px 34%;
+  transform: rotate(calc(-135deg + 270deg * var(--knob-pos)));
+  pointer-events: none;
+}
+
+.knob:hover {
+  box-shadow:
+    0 2px 5px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    inset 0 -3px 5px rgba(0, 0, 0, 0.55);
+}
+
+.knob:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
+/* the demo's own strip, below the console */
+.demo-strip {
+  max-width: var(--plate-width);
+  margin: 1rem auto 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  padding: 0.7rem 1rem;
+  background: #e7e4dc;
+  border: 1px solid #c4c0b6;
+  border-radius: 3px;
+}
+
+.demo-title {
+  margin: 0;
+  font-size: 0.95rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.demo-status {
+  margin: 0;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.8rem;
   color: #4a4d50;
 }
 
-.harness-status {
-  margin: 0 0 1rem;
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
-  font-size: 0.85rem;
-}
-
-.harness-error {
-  margin: 0 0 1rem;
+.demo-error {
+  flex: 1 1 100%;
+  margin: 0;
   padding: 0.5rem 0.75rem;
   border-left: 3px solid var(--accent);
   background: #e6d9d3;
   font-size: 0.9rem;
 }
 
-.harness-triggers,
-.harness-memory,
-.harness-midi {
+.demo-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 1.25rem;
-}
-
-.harness-params {
-  display: grid;
-  gap: 0.4rem;
-  margin-bottom: 1.25rem;
-  max-width: 32rem;
-}
-
-.harness-param {
-  display: grid;
-  grid-template-columns: 9rem 1fr 7rem;
   align-items: center;
-  gap: 0.75rem;
-  font-size: 0.9rem;
+  gap: 0.5rem;
 }
 
-.harness-slider {
-  width: 100%;
-}
-
-.harness-param-value {
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
-  font-size: 0.8rem;
-  text-align: right;
-  color: #4a4d50;
-}
-
-button {
+.demo-button {
   font: inherit;
-  padding: 0.45rem 0.8rem;
-  border: 1px solid var(--line);
+  font-size: 0.85rem;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid #a9a59b;
   border-radius: 2px;
-  background: var(--panel);
+  background: #d5d2ca;
   color: var(--ink);
   cursor: pointer;
 }
 
-button:hover {
-  background: #d5d2ca;
+.demo-button:hover {
+  background: #dedbd3;
+}
+
+.demo-midi-status {
+  font-size: 0.8rem;
+  color: #4a4d50;
 }
 
 button:focus-visible,
-input:focus-visible {
-  outline: 2px solid var(--accent);
+.knob:focus-visible {
+  outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
 
-.harness-midi-status {
-  align-self: center;
-  font-size: 0.85rem;
-  color: #4a4d50;
+@media (prefers-reduced-motion: reduce) {
+  .lamp.is-lit {
+    animation: none;
+  }
+}
+
+@media (max-width: 640px) {
+  body {
+    padding: 0.75rem 0.75rem 1.5rem;
+  }
 }
