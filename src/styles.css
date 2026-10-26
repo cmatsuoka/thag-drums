@@ -156,6 +156,9 @@ body {
   background: #5c6165;
   border-radius: 1px;
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.4);
+  /* The slot of the screw, turned the way the hand that drove it left
+   * it. The turn is set per screw, from the place it has on the panel. */
+  transform: rotate(var(--screw-angle, 0deg));
 }
 
 .screw-tl {
@@ -314,6 +317,45 @@ body {
   padding-left: 14px;
   border-left: 1px solid rgba(20, 23, 26, 0.18);
   box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.4);
+}
+
+/* The mark at the foot of a module: the name of the engine in a rounded
+ * frame, the way the hardware carries the maker's logo at the base of a
+ * module plate. It is a print on the plate, in the same narrow geometric
+ * face as the names of the modules, and it is not a control. */
+.strip-mark {
+  --mark-tracking: 0.18em;
+  margin-top: auto;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 6px 5px;
+  border: 1.5px solid rgba(20, 23, 26, 0.55);
+  /* A rectangle with rounded corners, not a pill: the corners of the
+   * original's frame turn through about a third of its height. */
+  border-radius: 8px;
+}
+
+.strip-mark-text {
+  font-family: "Josefin Sans", "Futura Light", "Century Gothic", system-ui,
+    sans-serif;
+  font-size: 17px;
+  font-weight: 200;
+  line-height: 1;
+  letter-spacing: var(--mark-tracking);
+  /* The tracking is also added after the last letter, so the word would
+   * sit half a letter off its centre without this. */
+  text-indent: calc(var(--mark-tracking) / 2);
+  text-transform: uppercase;
+  color: var(--plate-ink);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+  /* Josefin Sans keeps a quarter of the em below the baseline for the
+   * descenders, and its caps are small in the em, so the word sits high
+   * in the line box. It is nudged down to stand in the middle of the
+   * frame, the way the letters of the original stand in theirs. */
+  transform: translateY(0.09em);
+  white-space: nowrap;
 }
 
 .knob-cell {
