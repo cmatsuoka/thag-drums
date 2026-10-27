@@ -13,6 +13,7 @@ import { fromQ16, toQ16 } from '../audio/units';
 import { createFitter, type Fitter } from './fit';
 import { createKnob, type Knob } from './knob';
 import { MIX_KNOBS, STRIP_KNOBS, specFor, type KnobSpec } from './params';
+import { printedWord } from './wordmark';
 
 /**
  * The hardware panel: the faceplate with the five module strips.
@@ -136,7 +137,12 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
 
     const title = document.createElement('h2');
     title.className = 'strip-name';
-    title.textContent = name;
+    /* The name of the module is printed, not typed: it is the outline of
+     * the word. The word itself stays in the markup, for the readers. */
+    const spoken = document.createElement('span');
+    spoken.className = 'visually-hidden';
+    spoken.textContent = name;
+    title.append(printedWord(name.toUpperCase()), spoken);
 
     const lamps = document.createElement('div');
     lamps.className = 'strip-lamps';
@@ -168,9 +174,8 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
     const mark = document.createElement('span');
     mark.className = 'strip-mark';
 
-    const markText = document.createElement('span');
-    markText.className = 'strip-mark-text';
-    markText.textContent = 'THAG-V';
+    const markText = printedWord('THAG-V');
+    markText.setAttribute('class', 'strip-mark-text');
 
     mark.append(markText);
     mark.setAttribute('aria-hidden', 'true');
