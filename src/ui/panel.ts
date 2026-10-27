@@ -161,16 +161,16 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
     body.className = 'strip-body';
     body.append(knobColumn, mixColumn);
 
-    /* The mark at the foot of the plate: the engine's name in a rounded
-     * frame, the way the hardware carries the maker's logo at the base of
-     * a module. It is a print on the plate and nothing more: it is not a
-     * control, so the assistive technology skips it. */
+    /* The mark at the foot of the plate: the model of the machine in a
+     * rounded frame, the way the hardware carries the model's name at the
+     * base of every module. It is a print on the plate and nothing more:
+     * it is not a control, so the assistive technology skips it. */
     const mark = document.createElement('span');
     mark.className = 'strip-mark';
 
     const markText = document.createElement('span');
     markText.className = 'strip-mark-text';
-    markText.textContent = 'HIVE-V';
+    markText.textContent = 'THAG-V';
 
     mark.append(markText);
     mark.setAttribute('aria-hidden', 'true');

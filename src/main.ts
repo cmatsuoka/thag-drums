@@ -34,7 +34,7 @@ const engine = new HiveEngine();
  * names are the headings below it. */
 const heading = document.createElement('h1');
 heading.className = 'visually-hidden';
-heading.textContent = 'libhive-demo';
+heading.textContent = 'Thagomizer';
 app.append(heading);
 
 const panel = createPanel(app, engine);

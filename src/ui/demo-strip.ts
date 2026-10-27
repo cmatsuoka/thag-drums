@@ -34,7 +34,7 @@ export function createDemoStrip(
 
   const title = document.createElement('p');
   title.className = 'demo-title';
-  title.textContent = 'libhive-demo';
+  title.textContent = 'Thagomizer';
   strip.append(title);
 
   const status = document.createElement('p');
