@@ -8,7 +8,6 @@ import {
   Q16_ONE,
   SOUND_PARAM_COUNT,
   VOICE_COUNT,
-  paramIndex,
   type EngineCommand,
   type EngineEvent,
   type ParamInfo,
@@ -16,13 +15,21 @@ import {
 
 const BLOCK_FRAMES = 128;
 
-/* The number of blocks the level of a hit is measured over: the onset of
- * a voice is a few milliseconds long, and the block is 2.7. */
-const LEVEL_BLOCKS = 4;
-
 /* The state is posted about twenty times a second, and right after every
  * change, so the panel always shows the engine's own values. */
 const STATE_INTERVAL = Math.max(1, Math.round(sampleRate / 20));
+
+/* While a lamp is lit the state is posted three times as often, so that
+ * the fall of the lamp is a smooth one and not a step every fifty
+ * milliseconds. */
+const LIVE_STATE_INTERVAL = Math.max(1, Math.round(sampleRate / 60));
+
+/* The life of the filament: the light of the lamp comes up with the level
+ * of the instrument and goes out over this many seconds. */
+const LAMP_FALL = 0.12;
+
+/* Below this the lamp is off: the envelope has died out. */
+const LAMP_EPSILON = 1 / 4096;
 
 interface WorkletOptions {
   processorOptions?: {
@@ -67,19 +74,18 @@ class HiveProcessor extends AudioWorkletProcessor {
   private readonly values = new Int32Array(VOICE_COUNT * PARAM_COUNT);
   private readonly supported = new Uint8Array(VOICE_COUNT * PARAM_COUNT);
 
-  /* The trigger lamps. The engine has no per-voice activity query, so a
-   * lamp is lit by the trigger itself and is cleared when the decay time
-   * of that voice has passed, or when the whole kit goes idle. */
+  /* The trigger lamps. The engine knows the level of every instrument
+   * before it sums the voices into the mix, so a lamp follows the level
+   * of its own instrument. */
   private readonly sounding = new Uint8Array(VOICE_COUNT);
-  private readonly soundingUntil = new Float64Array(VOICE_COUNT);
 
-  /* The level of every voice's own last hit. The engine mixes the five
-   * voices into one signal and hands out nothing else, so the level of a
-   * single voice is the level of the mix right after that voice was
-   * hit: the mix is measured over the first blocks of the hit. */
-  private readonly levels = new Uint8Array(VOICE_COUNT);
-  private readonly measuring = new Uint8Array(VOICE_COUNT);
-  private readonly measured = new Float64Array(VOICE_COUNT);
+  /* The level of every instrument, in Q16.16, as the engine reports it for
+   * the last rendered block. */
+  private readonly levels = new Int32Array(VOICE_COUNT);
+
+  /* The brightness of every lamp, from 0 to 1: the level of the instrument
+   * with the fall of a lamp. */
+  private readonly lamp = new Float32Array(VOICE_COUNT);
 
   /* The trigger sensitivity of every channel. The engine has no velocity
    * input, so this is the host's own: a hit below the threshold does not
@@ -89,9 +95,13 @@ class HiveProcessor extends AudioWorkletProcessor {
   private version = 0;
   private active = false;
   private peak = 0;
+  private lampLit = false;
   private sinceState = 0;
   private dirty = true;
-  private frames = 0;
+
+  /* How much of the light is left after one block: the fall of the lamp
+   * over the life of the filament. */
+  private readonly lampFall = Math.exp(-BLOCK_FRAMES / (LAMP_FALL * sampleRate));
 
   constructor(options: WorkletOptions) {
     super(options);
@@ -158,10 +168,8 @@ class HiveProcessor extends AudioWorkletProcessor {
     }
 
     this.sinceState += BLOCK_FRAMES;
-    this.frames += BLOCK_FRAMES;
-    this.updateLamps();
-    this.measureLevels();
-    if (this.dirty || this.sinceState >= STATE_INTERVAL) {
+    this.readLevels();
+    if (this.dirty || this.sinceState >= this.stateInterval()) {
       this.sinceState = 0;
       this.dirty = false;
       this.readState();
@@ -297,7 +305,6 @@ class HiveProcessor extends AudioWorkletProcessor {
           break;
         }
         module._hive_trigger(this.context, command.instrument);
-        this.lightLamp(command.instrument);
         break;
       }
       case 'sens': {
@@ -319,55 +326,57 @@ class HiveProcessor extends AudioWorkletProcessor {
   }
 
   /**
-   * Light the trigger lamp of a voice.
+   * Read the level of every instrument from the engine.
    *
-   * The engine has no per-voice activity query, so the lamp follows the
-   * trigger and the decay time of the voice: the voice sounds for as long
-   * as its decay lasts, and the lamp goes out with it.
+   * The engine knows the contribution of every instrument before it sums
+   * the voices into the mix, so the level it reports is the level of that
+   * instrument alone: the lamp of a module follows the signal of its own
+   * instrument and not the mix of the whole kit.
+   *
+   * The engine reports the peak of a single block. The eye does not see
+   * a peak, so the worklet smooths it into the fall of a lamp: the light
+   * comes up at once and goes out slowly.
    */
-  private lightLamp(instrument: number): void {
-    const decay = this.values[instrument * PARAM_COUNT + paramIndex('decay')] ?? 0;
-    const seconds = decay / Q16_ONE;
-    this.sounding[instrument] = 1;
-    this.soundingUntil[instrument] = this.frames + seconds * sampleRate;
-    // The level of the hit is measured over the blocks that follow.
-    this.measuring[instrument] = LEVEL_BLOCKS;
-    this.measured[instrument] = 0;
+  private readLevels(): void {
+    const module = this.module;
+    if (module === null) {
+      return;
+    }
+
+    const pointer = module._hive_instrument_levels(this.context);
+    const base = pointer >> 2;
+    const heap = module.HEAP32;
+    const fall = this.lampFall;
+    let lit = false;
+
+    for (let voice = 0; voice < VOICE_COUNT; voice += 1) {
+      const raw = heap[base + voice] ?? 0;
+      const level = Math.min(1, Math.max(0, raw / Q16_ONE));
+      const envelope = this.lamp[voice] ?? 0;
+      const next = level > envelope ? level : envelope * fall;
+      const brightness = next < LAMP_EPSILON ? 0 : next;
+
+      this.levels[voice] = raw;
+      this.sounding[voice] = raw > 0 ? 1 : 0;
+      this.lamp[voice] = brightness;
+
+      if (brightness > 0) {
+        lit = true;
+      }
+    }
+
+    this.lampLit = lit;
   }
 
   /**
-   * Measure the level of the hits that are waiting for their first blocks.
+   * How many frames may pass between two states.
    *
-   * The engine mixes the voices into one signal, so this is the level of
-   * the mix right after the voice was hit. It is the level of that hit as
-   * long as the voice is the only one that sounds.
+   * The panel shows the engine's own values, so the state has to be posted
+   * often enough for the panel to feel alive: about twenty times a second
+   * while the kit is quiet, and three times as often while a lamp is lit.
    */
-  private measureLevels(): void {
-    for (let voice = 0; voice < VOICE_COUNT; voice += 1) {
-      const left = this.measuring[voice] ?? 0;
-      if (left === 0) {
-        continue;
-      }
-      const peak = this.peak / 32768;
-      const highest = Math.max(this.measured[voice] ?? 0, peak);
-      this.measured[voice] = highest;
-      this.measuring[voice] = left - 1;
-      if (left === 1) {
-        this.levels[voice] = Math.min(255, Math.round(highest * 255));
-      }
-    }
-  }
-
-  /**
-   * Clear the lamps of the voices whose decay time has passed.
-   */
-  private updateLamps(): void {
-    for (let voice = 0; voice < VOICE_COUNT; voice += 1) {
-      const until = this.soundingUntil[voice] ?? 0;
-      if (this.sounding[voice] === 1 && this.frames >= until) {
-        this.sounding[voice] = 0;
-      }
-    }
+  private stateInterval(): number {
+    return this.lampLit ? LIVE_STATE_INTERVAL : STATE_INTERVAL;
   }
 
   /**
@@ -427,8 +436,8 @@ class HiveProcessor extends AudioWorkletProcessor {
 
     this.active = module._hive_is_active(this.context) !== 0;
 
-    // A kit that has gone quiet is not sounding any more, whatever the
-    // decay times say.
+    // A kit that has gone quiet is not sounding any more: no instrument
+    // reports a level.
     if (!this.active) {
       this.sounding.fill(0);
     }
@@ -442,6 +451,7 @@ class HiveProcessor extends AudioWorkletProcessor {
         supported: this.supported,
         sounding: this.sounding,
         levels: this.levels,
+        lamp: this.lamp,
         sens: this.thresholds,
         version: this.version,
         active: this.active,

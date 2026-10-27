@@ -73,7 +73,7 @@ fi
 # resolve that: the whole worklet module would fail to evaluate. The Node
 # smoke test instantiates the wasm binary directly instead of importing
 # the glue.
-EXPORTED_FUNCTIONS='["_malloc","_free","_hive_version_number","_hive_create","_hive_destroy","_hive_set_sample_rate","_hive_reset","_hive_set_param","_hive_get_param","_hive_param_supported","_hive_set_instrument_volume","_hive_get_instrument_volume","_hive_set_instrument_pan","_hive_get_instrument_pan","_hive_trigger","_hive_process","_hive_is_active","_hive_panel_state","_hive_param_info"]'
+EXPORTED_FUNCTIONS='["_malloc","_free","_hive_version_number","_hive_create","_hive_destroy","_hive_set_sample_rate","_hive_reset","_hive_set_param","_hive_get_param","_hive_param_supported","_hive_set_instrument_volume","_hive_get_instrument_volume","_hive_set_instrument_pan","_hive_get_instrument_pan","_hive_trigger","_hive_process","_hive_is_active","_hive_instrument_levels","_hive_panel_state","_hive_param_info"]'
 
 # shellcheck disable=SC2086
 "$EMCC" \

@@ -402,6 +402,36 @@ try {
   );
   check(level > 0, `the lamp carries the level of the hit (${level})`);
 
+  /* The lamp of a module is lit by the level of its own instrument: the
+   * brightness on the faceplate is the level the engine reports. */
+  await page.waitForFunction(
+    () => {
+      const state = window.hive?.engineState;
+      const lamp = document.querySelector('#lamp-kick-trigger');
+      const shown = Number(lamp?.style.getPropertyValue('--lamp-level') ?? '0');
+      return (state?.lamp?.[0] ?? 0) > 0 && shown > 0;
+    },
+    undefined,
+    { timeout: TIMEOUT },
+  );
+  const lampState = await page.evaluate(() => {
+    const state = window.hive?.engineState;
+    const lamp = document.querySelector('#lamp-kick-trigger');
+    return {
+      level: state?.levels?.[0] ?? 0,
+      lamp: state?.lamp?.[0] ?? 0,
+      shown: Number(lamp?.style.getPropertyValue('--lamp-level') ?? '0'),
+    };
+  });
+  check(
+    lampState.level > 0,
+    `the engine reports the level of the instrument (${lampState.level})`,
+  );
+  check(
+    Math.abs(lampState.shown - lampState.lamp) < 0.01,
+    'the light of the lamp is proportional to the level of its own instrument',
+  );
+
   /* Every knob is operable with the keyboard alone. */
   const before = await readEngineState(page);
   const knobs = page.locator('.knob');

@@ -96,17 +96,24 @@ export interface EngineState {
   /** 1 where the engine supports the voice and the parameter. */
   readonly supported: Uint8Array;
   /**
-   * 1 while the voice is still sounding. The engine has no per-voice
-   * activity query, so the worklet derives it from the trigger and from
-   * the decay time of the voice.
+   * 1 while the voice is still sounding. The engine knows a voice is
+   * sounding when it produces a signal, so the flag follows the level of
+   * the instrument.
    */
   readonly sounding: Uint8Array;
   /**
-   * The level of the voice's own last hit, from 0 to 255. The engine
-   * mixes the voices into one signal, so the level of a single voice is
-   * the level of the mix right after that voice was hit.
+   * The level of every instrument, in Q16.16, as the engine reports it for
+   * the last rendered block: the peak of the instrument's own voice, after
+   * its own volume and before the pan and the mix. The lamp of a module is
+   * lit by the level of its own instrument.
    */
-  readonly levels: Uint8Array;
+  readonly levels: Int32Array;
+  /**
+   * The brightness of the lamp of every instrument, from 0 to 1. The engine
+   * reports the peak of a single block, so the worklet smooths it into the
+   * fall of a lamp: the light comes up at once and goes out slowly.
+   */
+  readonly lamp: Float32Array;
   /**
    * The trigger threshold of every voice, in Q16.16. The engine has no
    * velocity input, so the threshold is the host's own: the worklet holds

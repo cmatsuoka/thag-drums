@@ -28,6 +28,11 @@ static int32_t panel_out[H5_VOICE_COUNT * H5_PARAM_COUNT * PANEL_STRIDE];
 #define PARAM_INFO_STRIDE 3
 static int32_t param_info_out[H5_VOICE_COUNT * H5_PARAM_COUNT * PARAM_INFO_STRIDE];
 
+/* The level of every instrument, in Q16.16: the peak of the instrument's
+ * own voice in the last rendered block, after its own volume and before
+ * the pan and the mix. */
+static int32_t instrument_levels_out[H5_INSTR_COUNT];
+
 /* The minimum of a parameter the voice does not support. It is out of every
  * range, so the JS side can tell an unsupported pair from a real bound. */
 #define PARAM_UNSUPPORTED INT32_MAX
@@ -117,6 +122,27 @@ WASM_EXPORT void hive_process(void *ctx, int16_t *stereo_out, int32_t frames)
 WASM_EXPORT int32_t hive_is_active(void *ctx)
 {
     return h5_is_active(ctx) ? 1 : 0;
+}
+
+/*
+ * The level of every instrument, in Q16.16, as the engine reports it for
+ * the last rendered block.
+ *
+ * The engine knows the contribution of every instrument before it sums the
+ * voices into the mix, so the level of a single instrument is the level of
+ * that instrument alone. The JS side reads the array and lights the lamp of
+ * the module with it.
+ */
+WASM_EXPORT int32_t *hive_instrument_levels(void *ctx)
+{
+    int instrument;
+
+    if (h5_get_instrument_levels(ctx, instrument_levels_out) != H5_OK) {
+        for (instrument = 0; instrument < (int)H5_INSTR_COUNT; instrument++) {
+            instrument_levels_out[instrument] = 0;
+        }
+    }
+    return instrument_levels_out;
 }
 
 /*

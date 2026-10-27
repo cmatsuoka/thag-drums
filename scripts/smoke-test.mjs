@@ -230,6 +230,40 @@ while (blocks < totalBlocks) {
 check(peak > 0, `the rendered audio is not silent (peak ${peak})`);
 check(peak <= 32768, `the rendered audio stays inside the int16 range (peak ${peak})`);
 
+/* The engine reports the level of every instrument by itself: the peak of
+ * the instrument's own voice, after its own volume and before the pan and
+ * the mix. That is the level the lamp of a module is lit by. The glue
+ * hands the levels over in a static buffer, so the export has to be called
+ * again to read them after a block has been rendered. */
+engine.hive_reset(context);
+engine.hive_process(context, outPtr, BLOCK_FRAMES);
+let levelsPtr = engine.hive_instrument_levels(context);
+equal(
+  readI32(levelsPtr),
+  0,
+  'no instrument reports a level while the kit is silent',
+);
+
+engine.hive_trigger(context, VOICE.KICK);
+for (let block = 0; block < 4; block += 1) {
+  engine.hive_process(context, outPtr, BLOCK_FRAMES);
+}
+levelsPtr = engine.hive_instrument_levels(context);
+const kickLevel = readI32(levelsPtr);
+check(
+  kickLevel > 0,
+  `the triggered instrument reports its own level (${kickLevel})`,
+);
+check(
+  kickLevel <= Q16,
+  `the level of an instrument stays inside the Q16.16 range (${kickLevel})`,
+);
+equal(
+  readI32(levelsPtr + 4),
+  0,
+  'the instruments that are silent report no level',
+);
+
 /* The reset restores the factory parameters. */
 engine.hive_reset(context);
 engine.hive_get_param(context, VOICE.KICK, PARAM.TONE_PITCH, scratchPtr);

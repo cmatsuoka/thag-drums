@@ -332,18 +332,22 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
         widget.knob.element.dataset.value = String(value);
       }
 
-      const sounding = state.sounding[voiceIndex(voice)] === 1;
-      strip.triggerLamp.classList.toggle('is-lit', sounding);
+      const index = voiceIndex(voice);
+
+      /* The lamp of a module follows the signal of its own instrument.
+       * The engine knows the level of every instrument before it sums the
+       * voices into the mix, so the brightness of the lamp is the level of
+       * that instrument alone, and the light is proportional to it. */
+      const level = state.lamp[index] ?? 0;
+      strip.triggerLamp.classList.toggle('is-lit', level > 0);
+      strip.triggerLamp.style.setProperty('--lamp-level', level.toFixed(3));
+
+      /* The label follows the engine: the lamp may still fade out after
+       * the instrument has fallen silent. */
+      const sounding = state.sounding[index] === 1;
       strip.triggerLamp.setAttribute(
         'aria-label',
         `${INSTRUMENT_NAMES[voice]}: ${sounding ? 'sounding' : 'silent'}`,
-      );
-
-      // The lamp glows with the level of the voice's own last hit.
-      const level = (state.levels[voiceIndex(voice)] ?? 0) / 255;
-      strip.triggerLamp.style.setProperty(
-        '--lamp-level',
-        (0.35 + 0.65 * level).toFixed(3),
       );
     }
   };

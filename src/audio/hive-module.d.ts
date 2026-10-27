@@ -47,6 +47,7 @@ declare module '*hive.mjs' {
     _hive_trigger(ctx: number, instrument: number): number;
     _hive_process(ctx: number, out: number, frames: number): void;
     _hive_is_active(ctx: number): number;
+    _hive_instrument_levels(ctx: number): number;
     _hive_panel_state(ctx: number): number;
     _hive_param_info(): number;
   }
