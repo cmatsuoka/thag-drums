@@ -5,7 +5,7 @@
   --focus: #1a63c4;
 
   /* the faceplate of the console */
-  --plate-width: 1080px;
+  --plate-width: 900px;
   --plate-edge: #71767a;
   --plate-hi: #e9eced;
   --plate-mid: #dadde0;
@@ -195,8 +195,10 @@ body {
   align-items: center;
   gap: 9px;
   /* The padding keeps the print clear of the screws in the corners, and
-   * leaves the name some air under the screws. */
-  padding: 29px 20px 19px;
+   * leaves the name some air under the screws. It is narrow, so that the
+   * module can be narrow too: the knobs and their labels stand close to
+   * the edge of the plate. */
+  padding: 29px 14px 19px;
   background:
     repeating-linear-gradient(
       90deg,
@@ -318,7 +320,7 @@ body {
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  gap: 14px;
+  gap: 10px;
 }
 
 /* the knob column */
@@ -339,7 +341,7 @@ body {
   align-items: center;
   gap: 7px;
   margin-top: 2px;
-  padding-left: 14px;
+  padding-left: 10px;
   border-left: 1px solid rgba(20, 23, 26, 0.18);
   box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.4);
 }
@@ -485,11 +487,14 @@ body {
   font-size: 0.9rem;
 }
 
+/* The controls of the strip stand at its right end, and the name and the
+ * version of the engine at its left. */
 .demo-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
+  margin-left: auto;
 }
 
 .demo-button {
