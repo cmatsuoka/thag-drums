@@ -6,10 +6,15 @@ import {
   paramIndex,
   voiceIndex,
   type EngineState,
+  type Param,
   type ParamInfo,
   type Voice,
 } from '../audio/protocol';
 import { fromQ16, toQ16 } from '../audio/units';
+import {
+  buildModuleExport,
+  downloadModuleExport,
+} from './export';
 import { createFitter, type Fitter } from './fit';
 import { createKnob, type Knob } from './knob';
 import { MIX_KNOBS, STRIP_KNOBS, specFor, type KnobSpec } from './params';
@@ -61,6 +66,8 @@ interface StripWidgets {
   readonly knobColumn: HTMLElement;
   readonly mixColumn: HTMLElement;
   readonly knobs: KnobWidget[];
+  /** The control that writes the settings of the module to a file. */
+  readonly exportButton: HTMLButtonElement;
 }
 
 function findInfo(
@@ -109,6 +116,13 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
   faceplate.className = 'faceplate';
   faceplate.setAttribute('role', 'group');
   faceplate.setAttribute('aria-label', 'the sound module');
+
+  /* The row of module plates, and the rail of the case under them. */
+  const plateRow = document.createElement('div');
+  plateRow.className = 'faceplate-row';
+
+  const rail = document.createElement('div');
+  rail.className = 'faceplate-rail';
 
   const strips = new Map<Voice, StripWidgets>();
 
@@ -181,7 +195,29 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
     mark.setAttribute('aria-hidden', 'true');
 
     element.append(head, body, mark);
-    faceplate.append(element);
+    plateRow.append(element);
+
+    /* The export control: it writes the settings the engine holds for
+     * this module to a JSON file. It is a demo's own addition and not a
+     * control of the hardware, so it stands on the rail of the case, under
+     * the module it belongs to. */
+    const exportButton = document.createElement('button');
+    exportButton.type = 'button';
+    exportButton.className = 'strip-export';
+    exportButton.dataset.voice = voice;
+    exportButton.textContent = 'export';
+    exportButton.setAttribute(
+      'aria-label',
+      `export the settings of the ${name} module`,
+    );
+    exportButton.addEventListener('click', () => {
+      exportVoice(voice);
+    });
+
+    const railCell = document.createElement('div');
+    railCell.className = 'faceplate-rail-cell';
+    railCell.append(exportButton);
+    rail.append(railCell);
 
     strips.set(voice, {
       voice,
@@ -189,15 +225,41 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
       knobColumn,
       mixColumn,
       knobs: [],
+      exportButton,
     });
   }
 
+  faceplate.append(plateRow, rail);
   fitHost.append(faceplate);
   host.append(fitHost);
 
   const fitter: Fitter = createFitter(fitHost, faceplate);
 
   let built = false;
+
+  /* The last state the engine reported, and the controls it supports on
+   * every voice: the export reads the settings from them. */
+  let lastState: EngineState | null = null;
+  const supportedParams = new Map<Voice, Param[]>();
+
+  /**
+   * Write the settings of a module to a JSON file.
+   *
+   * The values are the ones the engine holds, read from its own snapshot,
+   * and only the controls the engine supports on that voice go into the
+   * file.
+   */
+  const exportVoice = (voice: Voice): void => {
+    const state = lastState;
+    if (state === null) {
+      return;
+    }
+    const supported = supportedParams.get(voice) ?? [];
+    downloadModuleExport(
+      voice,
+      buildModuleExport(voice, state, supported),
+    );
+  };
 
   /**
    * Build one knob of a strip.
@@ -271,6 +333,10 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
         continue;
       }
 
+      /* The controls the engine supports on this voice: the export writes
+       * these and nothing else. */
+      const supported: Param[] = [];
+
       for (const spec of STRIP_KNOBS) {
         if (spec.kind !== 'param') {
           continue;
@@ -291,6 +357,7 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
         });
         strip.knobColumn.append(widget.cell);
         strip.knobs.push(widget);
+        supported.push(spec.param);
       }
 
       /* The mixer of the channel, in its own shorter column. */
@@ -316,12 +383,19 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
         const widget = createWidget(voice, spec, range);
         strip.mixColumn.append(widget.cell);
         strip.knobs.push(widget);
+        if (spec.kind === 'param') {
+          supported.push(spec.param);
+        }
       }
+
+      supportedParams.set(voice, supported);
     }
 
     fitter.update();
   };
   const applyState = (state: EngineState): void => {
+    lastState = state;
+
     for (const voice of VOICES) {
       const strip = strips.get(voice);
       if (strip === undefined) {

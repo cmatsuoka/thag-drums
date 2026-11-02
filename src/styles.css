@@ -121,12 +121,9 @@ body {
   top: 0;
   left: 0;
   width: var(--plate-width);
-  padding: 14px;
+  padding: 14px 14px 0;
   display: flex;
-  align-items: stretch;
-  /* The plates stand side by side and close the opening of the case: there
-   * is no gap between them, only the rim of the case around them. */
-  gap: 0;
+  flex-direction: column;
   /* The console is scaled from its top left corner, so that the fitter
    * can place it in the middle of the space it has. */
   transform-origin: top left;
@@ -142,6 +139,41 @@ body {
     inset 0 1px 0 rgba(255, 255, 255, 0.18),
     inset 0 -3px 8px rgba(0, 0, 0, 0.55),
     0 22px 44px rgba(28, 28, 30, 0.34);
+}
+
+/* The row of module plates, and the rail of the case under them. */
+.faceplate-row {
+  display: flex;
+  align-items: stretch;
+  /* The plates stand side by side and close the opening of the case: there
+   * is no gap between them, only the rim of the case around them. */
+  gap: 0;
+}
+
+/* The rail of the case, under the plates: the bottom of the case is wider
+ * than the row of plates, and the demo's own controls stand on it. */
+.faceplate-rail {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: 8px;
+  /* The rail is the foot of the case: a lip of metal under the plates,
+   * with the shadow of the plates on it. */
+  min-height: 34px;
+  /* The padding matches the row of plates, so that a control on the rail
+   * stands under the module it belongs to. */
+  padding: 7px 14px 9px;
+  margin: 0 -14px;
+  border-top: 1px solid rgba(0, 0, 0, 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    inset 0 8px 12px rgba(0, 0, 0, 0.45);
+}
+
+.faceplate-rail-cell {
+  flex: 1 1 0;
+  display: flex;
+  justify-content: center;
 }
 
 /* the corner screws of a module plate */
@@ -385,6 +417,43 @@ body {
    * sits high in the box. It is nudged down to stand in the middle of
    * the frame, the way the letters of the original stand in theirs. */
   transform: translateY(0.09em);
+}
+
+/* The export control on the rail of the case: a small plate button that
+ * writes the settings of a module to a file. It stands on the dark metal
+ * of the case, so it is a dark button with a quiet letter on it: it is
+ * there to be used, not to be looked at. */
+.strip-export {
+  font-family: "Figtree", "Helvetica Neue", Helvetica, Arial, system-ui,
+    sans-serif;
+  font-size: 12px;
+  font-weight: 300;
+  letter-spacing: 0.06em;
+  color: rgba(226, 231, 234, 0.62);
+  padding: 3px 9px 4px;
+  border: 1px solid rgba(0, 0, 0, 0.55);
+  border-radius: 2px;
+  background: linear-gradient(180deg, #33373a, #212426);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.09),
+    0 1px 2px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+}
+
+.strip-export:hover {
+  color: rgba(238, 242, 244, 0.9);
+  background: linear-gradient(180deg, #3d4245, #2a2e30);
+}
+
+.strip-export:active {
+  color: rgba(238, 242, 244, 0.9);
+  background: linear-gradient(180deg, #1c1f21, #2e3235);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.55);
+}
+
+.strip-export:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
 .knob-cell {

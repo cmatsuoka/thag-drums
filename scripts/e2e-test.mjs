@@ -12,6 +12,7 @@
 
 import { spawn } from 'node:child_process';
 import { existsSync, readdirSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
@@ -578,6 +579,39 @@ try {
   check(
     (await readPeak(page)) === 0,
     'the sensitivity knob silences the channel for soft hits',
+  );
+
+  /* Every module can write its settings to a file. The file carries the
+   * values the engine holds for that module. */
+  for (const voice of VOICES) {
+    equal(
+      await page.locator(`.strip-export[data-voice="${voice}"]`).count(),
+      1,
+      `the ${voice} has an export control`,
+    );
+  }
+
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.locator('.strip-export[data-voice="snare"]').click(),
+  ]);
+  equal(
+    download.suggestedFilename(),
+    'snare.json',
+    'the export names the file after the module',
+  );
+  const exported = JSON.parse(
+    await readFile(await download.path(), 'utf8'),
+  );
+  equal(exported.voice, 'snare', 'the export names the module');
+  equal(
+    exported.parameters.sweep.q16,
+    await page.evaluate(() => window.hive?.value('snare', 'sweep') ?? -1),
+    'the export carries the value the engine holds',
+  );
+  check(
+    exported.parameters.noisePitch !== undefined,
+    'the export carries the controls of the module',
   );
 
   equal(consoleErrors.length, 0, 'the page logs no errors');
