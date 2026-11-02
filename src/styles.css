@@ -90,9 +90,21 @@
 body {
   margin: 0;
   padding: 1.25rem 1.5rem 2rem;
-  background: radial-gradient(circle at 50% 0%, #e3e0d8, var(--paper) 65%);
+  /* The page is plain paper: the gradient of the screen lives behind the
+   * console, and ends with the strip below it. */
+  background: var(--paper);
   color: var(--ink);
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+/* The background of the screen: a light that falls off from the middle of
+ * the console towards its edges. The gradient is the ground the console
+ * stands on, so it reaches from the top of the page to the foot of the
+ * strip below the chassis, and it does not go on below it. */
+#app {
+  margin: -1.25rem -1.5rem 0;
+  padding: 1.25rem 1.5rem 0;
+  background: radial-gradient(circle at 50% 0%, #e3e0d8, var(--paper) 65%);
 }
 
 /* The console keeps the shape of the hardware: it is scaled down, never
@@ -522,5 +534,10 @@ button:focus-visible,
 @media (max-width: 640px) {
   body {
     padding: 0.75rem 0.75rem 1.5rem;
+  }
+
+  #app {
+    margin: -0.75rem -0.75rem 0;
+    padding: 0.75rem 0.75rem 0;
   }
 }
