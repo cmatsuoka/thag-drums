@@ -21,8 +21,8 @@ export const VOICE_COUNT = VOICES.length;
 
 /**
  * The nine parameters of a voice, in the library's own order. The first
- * seven are the sound parameters a tone holds; the last two are the mixer
- * values.
+ * six are the sound parameters a tone holds; the last three are the
+ * mixer values of the channel.
  */
 export const PARAMS = [
   'noisePitch',
@@ -31,16 +31,16 @@ export const PARAMS = [
   'decay',
   'noiseTone',
   'clickTone',
-  'sweep',
   'volume',
   'pan',
+  'sensitivity',
 ] as const;
 export type Param = (typeof PARAMS)[number];
 export const PARAM_COUNT = PARAMS.length;
 
 /**
  * The sound parameters: the ones a tone holds, in the library's order. The
- * mixer values (volume, pan) are not part of a tone.
+ * mixer values (volume, pan, sensitivity) are not part of a tone.
  */
 export const SOUND_PARAMS = [
   'noisePitch',
@@ -49,7 +49,6 @@ export const SOUND_PARAMS = [
   'decay',
   'noiseTone',
   'clickTone',
-  'sweep',
 ] as const;
 export type SoundParam = (typeof SOUND_PARAMS)[number];
 export const SOUND_PARAM_COUNT = SOUND_PARAMS.length;
@@ -114,12 +113,6 @@ export interface EngineState {
    * fall of a lamp: the light comes up at once and goes out slowly.
    */
   readonly lamp: Float32Array;
-  /**
-   * The trigger threshold of every voice, in Q16.16. The engine has no
-   * velocity input, so the threshold is the host's own: the worklet holds
-   * it next to the engine, and the panel reads it back from here.
-   */
-  readonly sens: Int32Array;
   /** The version of the linked library, packed as 0x00MMmmpp. */
   readonly version: number;
   /** True while any voice is still sounding. */
@@ -132,13 +125,15 @@ export interface EngineState {
 export type EngineCommand =
   /** Set one parameter of one voice. The value is in Q16.16. */
   | { type: 'param'; voice: number; param: number; value: number }
-  /** Write a whole tone: the seven sound parameters of a voice, in the
-   * library's order. */
+  /**
+   * Write a whole tone: the six sound parameters of a voice, in the
+   * library's order.
+   */
   | { type: 'tone'; voice: number; values: number[] }
-  /** Play an instrument. The strength is in Q16.16. */
-  | { type: 'trigger'; instrument: number; strength: number }
-  /** The trigger sensitivity of a channel, in Q16.16. */
-  | { type: 'sens'; voice: number; threshold: number }
+  /**
+   * Play an instrument. The velocity is the MIDI strike level, 0..127.
+   */
+  | { type: 'trigger'; instrument: number; velocity: number }
   /** Restore the factory parameters and the mixer defaults. */
   | { type: 'reset' };
 

@@ -37,18 +37,16 @@ const PARAM = {
   DECAY: 3,
   NOISE_TONE: 4,
   CLICK_TONE: 5,
-  SWEEP: 6,
-  VOLUME: 7,
-  PAN: 8,
+  VOLUME: 6,
+  PAN: 7,
+  SENSITIVITY: 8,
 };
 const VOICE_COUNT = 5;
 const PARAM_COUNT = 9;
 const PANEL_STRIDE = 2;
 const PARAM_INFO_STRIDE = 3;
-const PARAM_UNSUPPORTED = 2147483647;
 const STATUS = {
   OK: 0,
-  UNSUPPORTED: 5,
   RANGE: 6,
 };
 
@@ -144,27 +142,23 @@ equal(kickTone.min, 10 * Q16, 'the Kick tone pitch starts at 10 Hz');
 equal(kickTone.max, 440 * Q16, 'the Kick tone pitch ends at 440 Hz');
 equal(kickTone.default, 40 * Q16, 'the Kick tone pitch defaults to 40 Hz');
 
-const snareSweep = paramInfo(infoPtr, VOICE.SNARE, PARAM.SWEEP);
-equal(snareSweep.min, 0, 'the Snare sweep starts at 0');
-equal(snareSweep.max, Q16, 'the Snare sweep ends at 1');
+const snareSens = paramInfo(infoPtr, VOICE.SNARE, PARAM.SENSITIVITY);
+equal(snareSens.min, 0, 'the Snare sensitivity starts at 0');
+equal(snareSens.max, Q16, 'the Snare sensitivity ends at 1');
+equal(snareSens.default, Q16, 'the Snare sensitivity defaults to 1');
 
-const kickSweep = paramInfo(infoPtr, VOICE.KICK, PARAM.SWEEP);
-equal(kickSweep.min, PARAM_UNSUPPORTED, 'the Kick has no sweep');
+const kickSens = paramInfo(infoPtr, VOICE.KICK, PARAM.SENSITIVITY);
+equal(kickSens.min, 0, 'the Kick sensitivity starts at 0');
+equal(kickSens.max, Q16, 'the Kick sensitivity ends at 1');
+equal(kickSens.default, Q16, 'the Kick sensitivity defaults to 1');
 
-equal(
-  engine.hive_param_supported(VOICE.SNARE, PARAM.SWEEP),
-  1,
-  'the Snare supports the sweep',
-);
-equal(
-  engine.hive_param_supported(VOICE.KICK, PARAM.SWEEP),
-  0,
-  'the Kick does not support the sweep',
-);
-
-/* An unsupported pair changes nothing and is reported. */
-const unsupported = engine.hive_set_param(context, VOICE.KICK, PARAM.SWEEP, 0);
-equal(unsupported, STATUS.UNSUPPORTED, 'the Kick rejects the sweep');
+for (const voice of Object.values(VOICE)) {
+  equal(
+    engine.hive_param_supported(voice, PARAM.SENSITIVITY),
+    1,
+    `the voice ${voice} supports the sensitivity`,
+  );
+}
 
 /* An out-of-range value is clamped, stored clamped and reported. The value
  * has to stay inside the int32 range of the API. */
@@ -194,9 +188,9 @@ equal(
   'the panel snapshot marks the parameter as supported',
 );
 equal(
-  readI32(panelPtr + panelIndex(VOICE.KICK, PARAM.SWEEP) + 4),
-  0,
-  'the panel snapshot marks the sweep as unsupported',
+  readI32(panelPtr + panelIndex(VOICE.KICK, PARAM.SENSITIVITY) + 4),
+  1,
+  'the panel snapshot marks the sensitivity as supported',
 );
 
 /* The kit plays: every instrument is triggered and a second of audio is
@@ -207,6 +201,12 @@ for (const instrument of Object.values(VOICE)) {
   const status = engine.hive_trigger(context, instrument);
   equal(status, STATUS.OK, `the instrument ${instrument} is triggered`);
 }
+
+/* The velocity is the strike level of the hit, in the MIDI scale. */
+const tooLoud = engine.hive_trigger_velocity(context, VOICE.KICK, 200);
+equal(tooLoud, STATUS.RANGE, 'a velocity above 127 is rejected');
+const withVelocity = engine.hive_trigger_velocity(context, VOICE.KICK, 64);
+equal(withVelocity, STATUS.OK, 'a velocity inside the range is accepted');
 
 let peak = 0;
 let blocks = 0;
@@ -229,6 +229,55 @@ while (blocks < totalBlocks) {
 
 check(peak > 0, `the rendered audio is not silent (peak ${peak})`);
 check(peak <= 32768, `the rendered audio stays inside the int16 range (peak ${peak})`);
+
+/* A soft hit is quieter than a full hit, and the sensitivity of the
+ * channel decides how much of that response the velocity gets. The renders
+ * are deterministic, so the peaks can be compared directly. */
+function renderSeconds(seconds) {
+  let peakValue = 0;
+  const blocks = Math.ceil((SAMPLE_RATE * seconds) / BLOCK_FRAMES);
+  for (let block = 0; block < blocks; block += 1) {
+    engine.hive_process(context, outPtr, BLOCK_FRAMES);
+    const view = new Int16Array(
+      engine.memory.buffer,
+      outPtr,
+      BLOCK_FRAMES * 2,
+    );
+    for (let index = 0; index < BLOCK_FRAMES * 2; index += 1) {
+      const sample = Math.abs(view[index] ?? 0);
+      if (sample > peakValue) {
+        peakValue = sample;
+      }
+    }
+  }
+  return peakValue;
+}
+
+engine.hive_reset(context);
+engine.hive_trigger_velocity(context, VOICE.KICK, 16);
+const softPeak = renderSeconds(0.5);
+
+engine.hive_reset(context);
+engine.hive_trigger_velocity(context, VOICE.KICK, 127);
+const fullPeak = renderSeconds(0.5);
+
+check(
+  softPeak < fullPeak / 2,
+  `a soft hit is quieter than a full hit (${softPeak} vs ${fullPeak})`,
+);
+
+/* Sensitivity 0: the velocity is ignored and the hit sounds at full
+ * strike level. */
+engine.hive_reset(context);
+engine.hive_set_param(context, VOICE.KICK, PARAM.SENSITIVITY, 0);
+engine.hive_trigger_velocity(context, VOICE.KICK, 16);
+const insensitivePeak = renderSeconds(0.5);
+
+check(
+  insensitivePeak >= fullPeak / 2,
+  `with sensitivity 0 a soft hit sounds (${insensitivePeak} vs ${fullPeak})`,
+);
+engine.hive_reset(context);
 
 /* The engine reports the level of every instrument by itself: the peak of
  * the instrument's own voice, after its own volume and before the pan and

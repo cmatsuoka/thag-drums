@@ -1,4 +1,4 @@
-import { Q16_ONE, type Instrument } from './protocol';
+import type { Instrument } from './protocol';
 
 /**
  * The note-to-instrument table.
@@ -28,8 +28,8 @@ export interface MidiDevice {
 }
 
 export interface MidiHandlers {
-  /** A note was played: the instrument and the strength of the hit. */
-  onTrigger: (instrument: Instrument, strength: number) => void;
+  /** A note was played: the instrument and the velocity of the hit. */
+  onTrigger: (instrument: Instrument, velocity: number) => void;
   /** The list of connected inputs changed. */
   onDevices: (devices: MidiDevice[]) => void;
   /** Something went wrong; the demo carries on without MIDI. */
@@ -151,9 +151,6 @@ export class MidiInput {
       return;
     }
 
-    this.handlers.onTrigger(
-      instrument,
-      Math.round((velocity / 127) * Q16_ONE),
-    );
+    this.handlers.onTrigger(instrument, velocity);
   }
 }

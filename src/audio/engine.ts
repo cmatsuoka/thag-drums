@@ -2,7 +2,6 @@ import wasmUrl from '../../build/hive.wasm?url';
 import workletUrl from './worklet.ts?worker&url';
 import {
   PARAM_COUNT,
-  Q16_ONE,
   instrumentIndex,
   paramIndex,
   voiceIndex,
@@ -137,12 +136,15 @@ export class HiveEngine {
     }
   }
 
-  /** Play an instrument. The strength is in Q16.16. */
-  trigger(instrument: Instrument, strength: number = Q16_ONE): void {
+  /**
+   * Play an instrument. The velocity is the MIDI strike level, in the
+   * range 0..127.
+   */
+  trigger(instrument: Instrument, velocity: number = 127): void {
     this.post({
       type: 'trigger',
       instrument: instrumentIndex(instrument),
-      strength,
+      velocity: Math.max(0, Math.min(127, Math.round(velocity))),
     });
     this.poke();
   }
@@ -158,16 +160,10 @@ export class HiveEngine {
     this.poke();
   }
 
-  /** Write a whole tone: the seven sound parameters of a voice, in the
+  /** Write a whole tone: the six sound parameters of a voice, in the
    * library's order, in Q16.16. */
   setTone(voice: Voice, values: number[]): void {
     this.post({ type: 'tone', voice: voiceIndex(voice), values });
-    this.poke();
-  }
-
-  /** The trigger sensitivity of a channel, in Q16.16. */
-  setSens(voice: Voice, threshold: number): void {
-    this.post({ type: 'sens', voice: voiceIndex(voice), threshold });
     this.poke();
   }
 

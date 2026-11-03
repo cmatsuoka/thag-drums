@@ -45,6 +45,7 @@ declare module '*hive.mjs' {
       out: number,
     ): number;
     _hive_trigger(ctx: number, instrument: number): number;
+    _hive_trigger_velocity(ctx: number, instrument: number, velocity: number): number;
     _hive_process(ctx: number, out: number, frames: number): void;
     _hive_is_active(ctx: number): number;
     _hive_instrument_levels(ctx: number): number;

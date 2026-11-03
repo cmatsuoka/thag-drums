@@ -30,9 +30,9 @@ const PARAMS = [
   'decay',
   'noiseTone',
   'clickTone',
-  'sweep',
   'volume',
   'pan',
+  'sensitivity',
 ];
 
 /**
@@ -140,8 +140,8 @@ async function readEngineValues(page) {
 }
 
 /**
- * What the engine holds: the parameters of the voices and the trigger
- * thresholds, which are the host's own.
+ * What the engine holds: the parameters of the voices, read out of the
+ * engine's own snapshot.
  */
 async function readEngineState(page) {
   return page.evaluate(() => {
@@ -150,17 +150,42 @@ async function readEngineState(page) {
       ? null
       : {
           values: Array.from(state.values),
-          sens: Array.from(state.sens ?? []),
         };
   });
 }
 
 /** The value the engine holds for a knob of a strip. */
 function stateValue(state, voice, param) {
-  if (param === 'sens') {
-    return state.sens[VOICES.indexOf(voice)];
-  }
   return state.values[engineIndex(voice, param)];
+}
+
+/**
+ * The loudest sample the engine has rendered for as long as it is asked.
+ *
+ * The engine posts the peak of every block it renders, so the page is
+ * polled for the duration and the loudest block seen is returned.
+ */
+async function measurePeak(page, durationMs) {
+  return page.evaluate(
+    (duration) =>
+      new Promise((resolve) => {
+        let max = 0;
+        const start = performance.now();
+        const tick = () => {
+          const peak = window.hive?.engineState?.peak ?? 0;
+          if (peak > max) {
+            max = peak;
+          }
+          if (performance.now() - start < duration) {
+            requestAnimationFrame(tick);
+          } else {
+            resolve(max);
+          }
+        };
+        tick();
+      }),
+    durationMs,
+  );
 }
 
 /** What the panel shows: the value of every knob of every strip. */
@@ -203,9 +228,9 @@ async function waitForEngineValue(page, voice, param, expected) {
         'decay',
         'noiseTone',
         'clickTone',
-        'sweep',
         'volume',
         'pan',
+        'sensitivity',
       ];
       const index = voices.indexOf(voice) * params.length + params.indexOf(param);
       return state.values[index] === expected;
@@ -231,9 +256,9 @@ async function waitForEngineValueChange(page, voice, param, previous) {
         'decay',
         'noiseTone',
         'clickTone',
-        'sweep',
         'volume',
         'pan',
+        'sensitivity',
       ];
       const index = voices.indexOf(voice) * params.length + params.indexOf(param);
       return state.values[index] !== previous;
@@ -276,13 +301,13 @@ try {
   );
   const status = await page.locator('#engine-status').textContent();
   check(
-    (status ?? '').includes('libhive 0.1.0'),
+    (status ?? '').includes('libhive 0.2.0'),
     `the engine reports its version (${(status ?? '').trim()})`,
   );
 
   /* The panel: five module strips. */
   await page.waitForFunction(
-    () => document.querySelectorAll('.strip .knob').length === 46,
+    () => document.querySelectorAll('.strip .knob').length === 45,
     undefined,
     { timeout: TIMEOUT },
   );
@@ -304,7 +329,7 @@ try {
       3,
       `the ${voice} has a mixer column of three knobs`,
     );
-    for (const param of ['volume', 'pan', 'sens']) {
+    for (const param of ['volume', 'pan', 'sensitivity']) {
       equal(
         await page
           .locator(`.strip[data-voice="${voice}"] .strip-mix .knob[data-param="${param}"]`)
@@ -315,18 +340,11 @@ try {
     }
   }
 
-  /* The knob column comes from the engine's own table: only the Snare has
-   * a Sweep knob, and every voice has a Pan knob. */
-  equal(
-    await page.locator('.strip[data-voice="snare"] .knob[data-param="sweep"]').count(),
-    1,
-    'the snare has a sweep knob',
-  );
-  for (const voice of VOICES.filter((name) => name !== 'snare')) {
+  /* No module carries a control the engine does not support: the Snare has
+   * no sweep knob any more, and every voice has a Pan knob. */
+  for (const voice of VOICES) {
     equal(
-      await page
-        .locator(`.strip[data-voice="${voice}"] .knob[data-param="sweep"]`)
-        .count(),
+      await page.locator(`.strip[data-voice="${voice}"] .knob[data-param="sweep"]`).count(),
       0,
       `the ${voice} has no sweep knob`,
     );
@@ -357,11 +375,11 @@ try {
       stored += 1;
     }
   }
-  equal(roles, 46, 'every knob is a slider');
-  equal(ranges, 46, 'every knob carries the range of its control');
+  equal(roles, 45, 'every knob is a slider');
+  equal(ranges, 45, 'every knob carries the range of its control');
   equal(
     stored,
-    46,
+    45,
     'every knob shows the value the engine stored',
   );
 
@@ -438,7 +456,7 @@ try {
   const knobs = page.locator('.knob');
   const knobCount = await knobs.count();
   for (let index = 0; index < knobCount; index += 1) {
-    await knobs.nth(index).press('ArrowUp');
+    await knobs.nth(index).press('ArrowDown');
   }
   await page.waitForTimeout(300);
   const after = await readEngineState(page);
@@ -450,19 +468,8 @@ try {
   }
   equal(
     moved,
-    knobCount - VOICES.length,
+    knobCount,
     'every knob of the engine moves with the arrow keys',
-  );
-  let movedSens = 0;
-  for (let index = 0; index < before.sens.length; index += 1) {
-    if (before.sens[index] !== after.sens[index]) {
-      movedSens += 1;
-    }
-  }
-  equal(
-    movedSens,
-    VOICES.length,
-    'every sensitivity knob moves with the arrow keys',
   );
 
   /* The panel follows the engine. */
@@ -479,13 +486,14 @@ try {
   /* A knob is also a pointer and a wheel. */
   const snareDecay = page.locator('.strip[data-voice="snare"] .knob[data-param="decay"]');
   const box = await snareDecay.boundingBox();
+  const decayBeforeDrag = (await readEngineValues(page))[engineIndex('snare', 'decay')];
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 - 60, {
     steps: 6,
   });
   await page.mouse.up();
-  await waitForEngineValueChange(page, 'snare', 'decay', after[engineIndex('snare', 'decay')]);
+  await waitForEngineValueChange(page, 'snare', 'decay', decayBeforeDrag);
   check(true, 'a knob is moved with the pointer');
 
   const beforeWheel = (await readEngineValues(page))[engineIndex('snare', 'decay')];
@@ -496,15 +504,15 @@ try {
 
   /* A knob edit reaches the engine. */
   const kickPitch = page.locator('.strip[data-voice="kick"] .knob[data-param="tonePitch"]');
-  const factoryValue = 40 * 65536;
+  const beforePitchEdit = (await readEngineValues(page))[engineIndex('kick', 'tonePitch')];
   await kickPitch.press('ArrowUp');
-  await waitForEngineValueChange(page, 'kick', 'tonePitch', factoryValue);
+  await waitForEngineValueChange(page, 'kick', 'tonePitch', beforePitchEdit);
   const edited = (await readEngineValues(page))[engineIndex('kick', 'tonePitch')];
-  check(edited !== factoryValue, 'a knob edit reaches the engine');
+  check(edited !== beforePitchEdit, 'a knob edit reaches the engine');
 
   /* The engine takes a whole tone at once. */
   await page.evaluate(() => {
-    const values = [0, 55 * 65536, 0, 0, 0, 0, 0];
+    const values = [0, 55 * 65536, 0, 0, 0, 0];
     window.hive?.setTone('kick', values);
   });
   await waitForEngineValue(page, 'kick', 'tonePitch', 55 * 65536);
@@ -539,19 +547,40 @@ try {
     'the reset restores the factory parameters',
   );
 
-  /* The sensitivity decides whether a channel speaks. A soft hit does not
-   * reach a channel that asks for more. */
+  /* The sensitivity scales how much of the strike the hit responds to.
+   * With the sensitivity at 0 the velocity is ignored and the hit sounds
+   * at full strike level; with the sensitivity at the factory 1 the hit is
+   * as quiet as its velocity. */
   await page.evaluate(() => {
-    window.hive?.setSens('kick', 0.6 * 65536);
+    window.hive?.setParam('kick', 'sensitivity', 0);
   });
-  await page.waitForTimeout(100);
+  await waitForEngineValue(page, 'kick', 'sensitivity', 0);
   await page.evaluate(() => {
-    window.hive?.trigger('kick', 0.2 * 65536);
+    window.hive?.trigger('kick', 16);
   });
-  await page.waitForTimeout(300);
+  const insensitivePeak = await measurePeak(page, 500);
+
+  await page.locator('#reset').click();
+  await waitForEngineValue(page, 'kick', 'sensitivity', 65536);
+  await page.evaluate(() => {
+    window.hive?.trigger('kick', 16);
+  });
+  const softPeak = await measurePeak(page, 500);
+
+  await page.locator('#reset').click();
+  await waitForEngineValue(page, 'kick', 'sensitivity', 65536);
+  await page.evaluate(() => {
+    window.hive?.trigger('kick', 127);
+  });
+  const fullPeak = await measurePeak(page, 500);
+
   check(
-    (await readPeak(page)) === 0,
-    'a soft hit does not make a sensitive channel speak',
+    softPeak < fullPeak / 2,
+    `a soft hit is quieter than a full hit (${softPeak} vs ${fullPeak})`,
+  );
+  check(
+    insensitivePeak >= fullPeak / 2,
+    `with sensitivity 0 a soft hit sounds at full strike level (${insensitivePeak} vs ${fullPeak})`,
   );
 
   /* A full-strength hit always plays. */
@@ -562,23 +591,21 @@ try {
     'a full-strength hit plays whatever the sensitivity is',
   );
 
-  /* The sensitivity knob of the module is the channel's own threshold. */
-  await page.waitForTimeout(500);
-  const kickSens = page.locator('.strip[data-voice="kick"] .knob[data-param="sens"]');
-  await kickSens.press('End');
-  await page.waitForFunction(
-    () => (window.hive?.engineState?.sens?.[0] ?? 0) === 65536,
-    undefined,
-    { timeout: TIMEOUT },
-  );
+  /* The sensitivity knob of the module sets the engine's sensitivity of
+   * its voice. */
+  await page.locator('#reset').click();
+  await waitForEngineValue(page, 'kick', 'sensitivity', 65536);
+  const kickSens = page.locator('.strip[data-voice="kick"] .knob[data-param="sensitivity"]');
+  await kickSens.press('Home');
+  await waitForEngineValue(page, 'kick', 'sensitivity', 0);
   check(true, 'the sensitivity knob reaches the engine');
   await page.evaluate(() => {
-    window.hive?.trigger('kick', 0.5 * 65536);
+    window.hive?.trigger('kick', 16);
   });
-  await page.waitForTimeout(300);
+  const viaKnobPeak = await measurePeak(page, 500);
   check(
-    (await readPeak(page)) === 0,
-    'the sensitivity knob silences the channel for soft hits',
+    viaKnobPeak >= fullPeak / 2,
+    'at sensitivity 0 the knob gives the soft hit its full strike level',
   );
 
   /* Every module can write its settings to a file. The file carries the
@@ -605,9 +632,14 @@ try {
   );
   equal(exported.voice, 'snare', 'the export names the module');
   equal(
-    exported.parameters.sweep.q16,
-    await page.evaluate(() => window.hive?.value('snare', 'sweep') ?? -1),
+    exported.parameters.sensitivity.q16,
+    await page.evaluate(() => window.hive?.value('snare', 'sensitivity') ?? -1),
     'the export carries the value the engine holds',
+  );
+  equal(
+    exported.parameters.sweep,
+    undefined,
+    'the export does not carry a control the engine does not have',
   );
   check(
     exported.parameters.noisePitch !== undefined,

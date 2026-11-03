@@ -20,7 +20,7 @@ declare global {
  *
  * The engine's graph is built while the page loads, so the first press
  * only has to wake the context up. Every trigger source ends in the same
- * place: a trigger with an instrument and a strength.
+ * place: a trigger with an instrument and a velocity.
  */
 
 const app = document.querySelector<HTMLElement>('#app');
@@ -43,8 +43,8 @@ let demo: DemoStrip | null = null;
 
 /* A MIDI controller may be connected; the velocity is the hit strength. */
 const midi = new MidiInput({
-  onTrigger: (instrument, strength) => {
-    engine.trigger(instrument, strength);
+  onTrigger: (instrument, velocity) => {
+    engine.trigger(instrument, velocity);
   },
   onDevices: (devices) => {
     demo?.setMidiDevices(devices);
@@ -68,8 +68,8 @@ engine.onError((message) => {
 });
 
 /* The keyboard is the practical way to play. */
-attachKeyboard((instrument, strength) => {
-  engine.trigger(instrument, strength);
+attachKeyboard((instrument, velocity) => {
+  engine.trigger(instrument, velocity);
 });
 
 /* The graph is built while the page loads. */

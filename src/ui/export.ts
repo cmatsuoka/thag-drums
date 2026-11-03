@@ -60,8 +60,6 @@ export interface ModuleExport {
   };
   /** The controls of the module, by the name of the engine's parameter. */
   readonly parameters: Readonly<Record<string, ExportedParameter>>;
-  /** The trigger threshold of the channel: the host's own value. */
-  readonly sensitivity: ExportedParameter;
 }
 
 /** The version of the engine, as the panel shows it. */
@@ -95,8 +93,6 @@ export function buildModuleExport(
     };
   }
 
-  const sensQ16 = state.sens[voiceIndex(voice)] ?? 0;
-
   return {
     module: INSTRUMENT_NAMES[voice],
     voice,
@@ -105,11 +101,6 @@ export function buildModuleExport(
       version: versionText(state.version),
     },
     parameters,
-    sensitivity: {
-      value: physical(sensQ16),
-      unit: '',
-      q16: sensQ16,
-    },
   };
 }
 

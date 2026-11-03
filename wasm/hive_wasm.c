@@ -114,6 +114,16 @@ WASM_EXPORT int32_t hive_trigger(void *ctx, int32_t instrument)
     return (int32_t)h5_trigger(ctx, (h5_instrument)instrument);
 }
 
+WASM_EXPORT int32_t hive_trigger_velocity(void *ctx, int32_t instrument,
+    int32_t velocity)
+{
+    if (velocity < 0 || velocity > 127) {
+        return (int32_t)H5_ERR_RANGE;
+    }
+    return (int32_t)h5_trigger_velocity(ctx, (h5_instrument)instrument,
+        (uint8_t)velocity);
+}
+
 WASM_EXPORT void hive_process(void *ctx, int16_t *stereo_out, int32_t frames)
 {
     h5_process(ctx, stereo_out, (size_t)frames);

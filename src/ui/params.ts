@@ -84,14 +84,6 @@ export const PARAM_SPECS: Readonly<Record<Param, ParamSpec>> = {
     step: 0.02,
     fineStep: 0.002,
   },
-  sweep: {
-    label: 'sweep',
-    unit: '',
-    taper: 'linear',
-    decimals: 2,
-    step: 0.02,
-    fineStep: 0.002,
-  },
   volume: {
     label: 'vol',
     unit: '',
@@ -108,34 +100,27 @@ export const PARAM_SPECS: Readonly<Record<Param, ParamSpec>> = {
     step: 0.02,
     fineStep: 0.002,
   },
+  sensitivity: {
+    label: 'sens',
+    unit: '',
+    taper: 'linear',
+    decimals: 2,
+    step: 0.02,
+    fineStep: 0.002,
+  },
 };
 
 /**
- * The trigger sensitivity of a channel. It is the host's own: the engine
- * has no velocity input, so the strength of a hit decides whether the
- * channel speaks, never how loud it is.
+ * A knob of a module strip: one of the engine's own parameters.
  */
-export const SENS_SPEC: ParamSpec = {
-  label: 'sens',
-  unit: '',
-  taper: 'linear',
-  decimals: 2,
-  step: 0.02,
-  fineStep: 0.002,
-};
-
-/**
- * A knob of a module strip: either one of the engine's own parameters or
- * the host's trigger sensitivity.
- */
-export type KnobSpec =
-  | { readonly kind: 'param'; readonly param: Param }
-  | { readonly kind: 'sens' };
+export interface KnobSpec {
+  readonly kind: 'param';
+  readonly param: Param;
+}
 
 /**
  * The long knob column of a module strip, in the order of the hardware:
- * Noise, Tone, Bend, Decay, Noise/Tone, Click/Drum and Sweep, which only
- * the Snare has.
+ * Noise, Tone, Bend, Decay, Noise/Tone and Click/Drum.
  *
  * The strip is built from this list and from the engine's own table: a
  * knob the engine does not support is not on the panel.
@@ -147,24 +132,23 @@ export const STRIP_KNOBS: readonly KnobSpec[] = [
   { kind: 'param', param: 'decay' },
   { kind: 'param', param: 'noiseTone' },
   { kind: 'param', param: 'clickTone' },
-  { kind: 'param', param: 'sweep' },
 ];
 
 /**
  * The second, shorter column of a module: the mixer of the channel.
  *
- * Volume and Pan are the engine's own per-voice mixer values, Sens is the
- * host's trigger threshold. The three sit together in their own column, so
- * the sound knobs of the module stay together and the channel's controls
- * are found in one place.
+ * Volume, Pan and Sens are the engine's own per-voice channel controls,
+ * Sens being the strike sensitivity of the voice. The three sit together
+ * in their own column, so the sound knobs of the module stay together and
+ * the channel's controls are found in one place.
  */
 export const MIX_KNOBS: readonly KnobSpec[] = [
   { kind: 'param', param: 'volume' },
   { kind: 'param', param: 'pan' },
-  { kind: 'sens' },
+  { kind: 'param', param: 'sensitivity' },
 ];
 
 /** The label and the scale of a knob. */
 export function specFor(spec: KnobSpec): ParamSpec {
-  return spec.kind === 'sens' ? SENS_SPEC : PARAM_SPECS[spec.param];
+  return PARAM_SPECS[spec.param];
 }

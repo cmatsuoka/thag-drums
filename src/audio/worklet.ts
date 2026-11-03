@@ -87,11 +87,6 @@ class HiveProcessor extends AudioWorkletProcessor {
    * with the fall of a lamp. */
   private readonly lamp = new Float32Array(VOICE_COUNT);
 
-  /* The trigger sensitivity of every channel. The engine has no velocity
-   * input, so this is the host's own: a hit below the threshold does not
-   * make the channel speak. */
-  private readonly thresholds = new Int32Array(VOICE_COUNT);
-
   private version = 0;
   private active = false;
   private peak = 0;
@@ -298,24 +293,14 @@ class HiveProcessor extends AudioWorkletProcessor {
         break;
       }
       case 'trigger': {
-        const threshold = this.thresholds[command.instrument] ?? 0;
-        // The engine has no velocity input: the strength of the hit
-        // decides whether the channel speaks, never how loud it is.
-        if (command.strength < threshold) {
-          break;
-        }
-        module._hive_trigger(this.context, command.instrument);
-        break;
-      }
-      case 'sens': {
-        this.thresholds[command.voice] = command.threshold;
+        module._hive_trigger_velocity(this.context, command.instrument,
+          command.velocity);
         break;
       }
       case 'reset': {
+        /* The reset restores the factory parameters, the sensitivity
+         * included. */
         module._hive_reset(this.context);
-        // The sensitivity is the host's own: the reset puts it back to
-        // the factory value as well, so every channel speaks again.
-        this.thresholds.fill(0);
         break;
       }
     }
@@ -452,7 +437,6 @@ class HiveProcessor extends AudioWorkletProcessor {
         sounding: this.sounding,
         levels: this.levels,
         lamp: this.lamp,
-        sens: this.thresholds,
         version: this.version,
         active: this.active,
         peak: this.peak,

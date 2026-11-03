@@ -1,4 +1,4 @@
-import { Q16_ONE, type Instrument } from './protocol';
+import type { Instrument } from './protocol';
 
 /**
  * The keyboard map of the kit. The keys are the ones the library's own
@@ -51,7 +51,7 @@ function isTextField(target: EventTarget | null): boolean {
  * The returned function detaches the handler.
  */
 export function attachKeyboard(
-  onTrigger: (instrument: Instrument, strength: number) => void,
+  onTrigger: (instrument: Instrument, velocity: number) => void,
 ): () => void {
   const handler = (event: KeyboardEvent): void => {
     if (event.repeat) {
@@ -68,8 +68,8 @@ export function attachKeyboard(
       return;
     }
     event.preventDefault();
-    // The keyboard plays at full strength: there is no key velocity.
-    onTrigger(instrument, Q16_ONE);
+    // The keyboard plays at full velocity: there is no key velocity.
+    onTrigger(instrument, 127);
   };
 
   window.addEventListener('keydown', handler);
