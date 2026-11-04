@@ -13,8 +13,8 @@
   --plate-ink: #14171a;
   /* the indicator lamps: the glass of an unlit bulb, the light of a lit
    * one and the hot core of its filament */
-  --lamp-glass: 140 58 51;
-  --lamp-off: 93 26 21;
+  --lamp-glass: 105 43 38;
+  --lamp-off: 70 19 16;
   --lamp-on: 245 50 20;
   --lamp-core: 255 140 110;
 
@@ -318,13 +318,19 @@ body {
  * instrument glows faintly and a loud one burns. The light is added to
  * the glass of the bulb, the way a lit lamp adds light to what is behind
  * it, so the lamp keeps its shape and never disappears from the panel.
+ *
+ * The level comes in raw from the engine; the eye needs a louder curve
+ * than that to see a light at all, so the glow is derived from the
+ * level with a floor and a steep slope. `--lamp-level` itself stays
+ * the engine's value.
  */
 .lamp.is-lit {
+  --lamp-glow: min(0.8, calc(var(--lamp-level) * 2.2 + 0.15));
   background:
     radial-gradient(
       circle at 34% 28%,
-      rgb(var(--lamp-core) / var(--lamp-level)),
-      rgb(var(--lamp-on) / var(--lamp-level)) 66%
+      rgb(var(--lamp-core) / var(--lamp-glow)),
+      rgb(var(--lamp-on) / var(--lamp-glow)) 66%
     ),
     radial-gradient(
       circle at 34% 28%,
@@ -333,8 +339,8 @@ body {
     );
   background-blend-mode: plus-lighter;
   box-shadow:
-    0 0 calc(6px * var(--lamp-level)) rgb(var(--lamp-on) / 0.6),
-    inset 0 1px 2px rgba(255, 255, 255, calc(0.5 * var(--lamp-level))),
+    0 0 calc(8px * var(--lamp-glow)) rgb(var(--lamp-on) / 0.75),
+    inset 0 1px 2px rgba(255, 255, 255, calc(0.6 * var(--lamp-glow))),
     0 1px 0 rgba(255, 255, 255, 0.35);
   animation: lamp-pulse 1.8s ease-in-out infinite;
 }
@@ -343,15 +349,15 @@ body {
   0%,
   100% {
     box-shadow:
-      0 0 calc(5px * var(--lamp-level)) rgb(var(--lamp-on) / 0.55),
-      inset 0 1px 2px rgba(255, 255, 255, calc(0.5 * var(--lamp-level))),
+      0 0 calc(7px * var(--lamp-glow)) rgb(var(--lamp-on) / 0.7),
+      inset 0 1px 2px rgba(255, 255, 255, calc(0.6 * var(--lamp-glow))),
       0 1px 0 rgba(255, 255, 255, 0.35);
   }
 
   50% {
     box-shadow:
-      0 0 calc(7px * var(--lamp-level)) rgb(var(--lamp-on) / 0.8),
-      inset 0 1px 2px rgba(255, 255, 255, calc(0.5 * var(--lamp-level))),
+      0 0 calc(11px * var(--lamp-glow)) rgb(var(--lamp-on) / 0.8),
+      inset 0 1px 2px rgba(255, 255, 255, calc(0.6 * var(--lamp-glow))),
       0 1px 0 rgba(255, 255, 255, 0.35);
   }
 }
