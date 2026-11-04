@@ -194,7 +194,7 @@ async function readPanelValues(page) {
     const values = {};
     for (const knob of document.querySelectorAll('.knob')) {
       const strip = knob.closest('.strip');
-      const key = `${strip?.dataset.voice}.${knob.dataset.param}`;
+      const key = `${strip?.dataset.voice ?? strip?.dataset.place}.${knob.dataset.param}`;
       values[key] = {
         stored: Number(knob.getAttribute('data-value')),
         aria: knob.getAttribute('aria-valuenow'),
@@ -305,10 +305,10 @@ try {
     `the engine reports its version (${(status ?? '').trim()})`,
   );
 
-  /* The panel: the five module strips, and the two blank modules at the
-   * end of the row. */
+  /* The panel: the five module strips, the unwired hi-hat module and the
+   * unwired cymbal module at the end of the row. */
   await page.waitForFunction(
-    () => document.querySelectorAll('.strip .knob').length === 45,
+    () => document.querySelectorAll('.strip .knob').length === 63,
     undefined,
     { timeout: TIMEOUT },
   );
@@ -319,29 +319,57 @@ try {
   );
   equal(
     await page.locator('.strip-blank').count(),
-    2,
-    'two of the modules are blank',
-  );
-  equal(
-    await page.locator('.strip-blank .knob').count(),
     0,
-    'the blank modules carry no knob',
-  );
-  equal(
-    await page.locator('.strip-blank .screw').count(),
-    8,
-    'each blank module carries the four screws',
-  );
-  equal(
-    await page.locator('.strip-blank .lamp').count(),
-    0,
-    'the blank modules carry no lamp',
+    'no module is blank any more',
   );
   equal(
     await page.locator('.strip .lamp').count(),
-    5,
-    'every strip has its trigger lamp',
+    7,
+    'every module draws its lamp',
   );
+
+  /* The metallic modules: the faceplates of two instruments the engine
+   * does not have yet. Every part is drawn, nothing is wired to the
+   * engine. */
+  for (const place of ['hihat', 'cymbal']) {
+    equal(
+      await page.locator(`.strip-${place}`).count(),
+      1,
+      `the ${place} module is on the panel`,
+    );
+    equal(
+      await page.locator(`.strip-${place} .strip-knobs .knob`).count(),
+      6,
+      `the ${place} module has the six sound knobs`,
+    );
+    for (const param of ['sweep', 'tone', 'bend', 'decay', 'noiseTone', 'bellCym']) {
+      equal(
+        await page.locator(`.strip-${place} .knob[data-param="${param}"]`).count(),
+        1,
+        `the ${place} module has a ${param} knob`,
+      );
+    }
+    equal(
+      await page.locator(`.strip-${place} .strip-mix .knob`).count(),
+      3,
+      `the ${place} module has the three mixer knobs`,
+    );
+    equal(
+      await page.locator(`.strip-${place} .screw`).count(),
+      4,
+      `the ${place} module carries the four screws`,
+    );
+    equal(
+      await page.locator(`.strip-${place} .strip-export`).count(),
+      0,
+      `the ${place} module has no export control`,
+    );
+    equal(
+      await page.locator(`.strip-${place} .lamp`).count(),
+      1,
+      `the ${place} module draws its lamp`,
+    );
+  }
 
   /* Every module has a second, shorter column: the mixer of the channel. */
   for (const voice of VOICES) {
@@ -396,12 +424,17 @@ try {
       stored += 1;
     }
   }
-  equal(roles, 45, 'every knob is a slider');
-  equal(ranges, 45, 'every knob carries the range of its control');
+  equal(roles, 63, 'every knob is a slider');
+  equal(ranges, 63, 'every knob carries the range of its control');
   equal(
     stored,
     45,
-    'every knob shows the value the engine stored',
+    'every wired knob shows the value the engine stored',
+  );
+  equal(
+    engineState?.values?.length ?? 0,
+    45,
+    'the hi-hat is not wired to the engine',
   );
 
   /* The keyboard plays the Bass, and the engine renders it. */
@@ -472,9 +505,10 @@ try {
     'the light of the lamp is proportional to the level of its own instrument',
   );
 
-  /* Every knob is operable with the keyboard alone. */
+  /* Every knob that reaches the engine is operable with the keyboard
+   * alone. The hi-hat knobs turn but send nothing anywhere. */
   const before = await readEngineState(page);
-  const knobs = page.locator('.knob');
+  const knobs = page.locator('.strip[data-voice] .knob');
   const knobCount = await knobs.count();
   for (let index = 0; index < knobCount; index += 1) {
     await knobs.nth(index).press('ArrowDown');

@@ -16,8 +16,10 @@ import {
   downloadModuleExport,
 } from './export';
 import { createFitter, type Fitter } from './fit';
+import { createCymbalModule, createHiHatModule } from './metallic';
 import { createKnob, type Knob } from './knob';
 import { MIX_KNOBS, STRIP_KNOBS, specFor, type KnobSpec } from './params';
+import { appendScrews } from './screws';
 import { printedWord } from './wordmark';
 
 /**
@@ -33,9 +35,9 @@ import { printedWord } from './wordmark';
  * holds, read back from the engine's own snapshot. A value the engine
  * clamped is shown clamped.
  *
- * Two blank modules stand at the end of the row: plates with nothing on
- * them but the screws in their corners, reserved for instruments the
- * engine does not have yet.
+ * The hi-hat module and the cymbal module stand at the end of the row:
+ * plates that draw the faceplates of two instruments the engine does
+ * not have yet, wired to nothing.
  */
 
 export interface Panel {
@@ -71,56 +73,6 @@ function findInfo(
 ): ParamInfo | undefined {
   const v = voiceIndex(voice);
   return info.find((entry) => entry.voice === v && entry.param === param);
-}
-
-/**
- * The four screws of a module plate, one in each corner.
- *
- * The plate may be an instrument module or a blank one; the screws are
- * the same. The turn of each screw is fixed by the place it has on the
- * panel: the machine looks the same on every load, and two renders of
- * it never differ.
- */
-function appendScrews(element: HTMLElement, place: string): void {
-  for (const corner of ['tl', 'tr', 'bl', 'br']) {
-    const screw = document.createElement('span');
-    screw.className = `screw screw-${corner}`;
-    screw.style.setProperty(
-      '--screw-angle',
-      `${screwAngle(place, corner)}deg`,
-    );
-    screw.setAttribute('aria-hidden', 'true');
-    element.append(screw);
-  }
-}
-
-/**
- * The turn of the slot of a screw, in degrees.
- *
- * A screw is turned by a hand, and no two of them end up pointing the
- * same way. The turn of each screw is fixed by the place it has on the
- * panel: the machine looks the same on every load, and two renders of it
- * never differ.
- */
-function screwAngle(place: string, corner: string): number {
-  const key = `${place}/${corner}`;
-
-  /* A hash of the place of the screw, so that every one of them gets a
-   * turn of its own. */
-  let hash = 2166136261 >>> 0;
-  for (let i = 0; i < key.length; i += 1) {
-    hash ^= key.charCodeAt(i);
-    hash = Math.imul(hash, 16777619) >>> 0;
-  }
-
-  /* One round of mixing, so that the screws that stand near each other
-   * on the panel do not end up near each other in their turn. */
-  hash ^= hash >>> 15;
-  hash = Math.imul(hash, 2246822507) >>> 0;
-  hash ^= hash >>> 13;
-
-  /* A slot has no head and no tail, so half a turn is the same as none. */
-  return (hash >>> 0) % 180;
 }
 
 export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
@@ -235,25 +187,18 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
     });
   }
 
-  /* The blank modules at the end of the row: plates with nothing on them
-   * but the screws in their corners, reserved for instruments the engine
-   * does not have yet. They carry no print, no lamp and no control, and
-   * nothing for the assistive technology either. The rail stands empty
-   * under them, so that the export controls keep standing under the
+  /* The metallic modules at the end of the row: the faceplates of two
+   * instruments the engine does not have yet, the hi-hat and the cymbal,
+   * with every part drawn and nothing wired to the engine. Their rail
+   * cells stand empty, so the export controls keep standing under the
    * modules they belong to. */
-  for (const place of ['blank-1', 'blank-2']) {
-    const element = document.createElement('div');
-    element.className = 'strip strip-blank';
-    element.dataset.place = place;
-    element.setAttribute('aria-hidden', 'true');
-    appendScrews(element, place);
-    plateRow.append(element);
+  const hiHat = createHiHatModule();
+  plateRow.append(hiHat.element);
+  rail.append(hiHat.railCell);
 
-    const railCell = document.createElement('div');
-    railCell.className = 'faceplate-rail-cell';
-    railCell.setAttribute('aria-hidden', 'true');
-    rail.append(railCell);
-  }
+  const cymbal = createCymbalModule();
+  plateRow.append(cymbal.element);
+  rail.append(cymbal.railCell);
 
   faceplate.append(plateRow, rail);
   fitHost.append(faceplate);
