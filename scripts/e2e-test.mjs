@@ -305,7 +305,8 @@ try {
     `the engine reports its version (${(status ?? '').trim()})`,
   );
 
-  /* The panel: five module strips. */
+  /* The panel: the five module strips, and the two blank modules at the
+   * end of the row. */
   await page.waitForFunction(
     () => document.querySelectorAll('.strip .knob').length === 45,
     undefined,
@@ -313,8 +314,28 @@ try {
   );
   equal(
     await page.locator('.strip').count(),
-    5,
-    'the panel has the five module strips',
+    7,
+    'the panel has the seven modules',
+  );
+  equal(
+    await page.locator('.strip-blank').count(),
+    2,
+    'two of the modules are blank',
+  );
+  equal(
+    await page.locator('.strip-blank .knob').count(),
+    0,
+    'the blank modules carry no knob',
+  );
+  equal(
+    await page.locator('.strip-blank .screw').count(),
+    8,
+    'each blank module carries the four screws',
+  );
+  equal(
+    await page.locator('.strip-blank .lamp').count(),
+    0,
+    'the blank modules carry no lamp',
   );
   equal(
     await page.locator('.strip .lamp').count(),

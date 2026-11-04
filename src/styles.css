@@ -5,7 +5,7 @@
   --focus: #1a63c4;
 
   /* the faceplate of the console */
-  --plate-width: 900px;
+  --plate-width: 1164px;
   --plate-edge: #71767a;
   --plate-hi: #e9eced;
   --plate-mid: #dadde0;
@@ -155,8 +155,10 @@ body {
 .faceplate-rail {
   display: flex;
   align-items: center;
-  justify-content: space-around;
-  gap: 8px;
+  /* The cells stand in the same places as the plates above them: the same
+   * seven equal columns with no gap, so that a control on the rail stands
+   * under the module it belongs to. */
+  gap: 0;
   /* The rail is the foot of the case: a lip of metal under the plates,
    * with the shadow of the plates on it. */
   min-height: 34px;

@@ -21,7 +21,7 @@ import { MIX_KNOBS, STRIP_KNOBS, specFor, type KnobSpec } from './params';
 import { printedWord } from './wordmark';
 
 /**
- * The hardware panel: the faceplate with the five module strips.
+ * The hardware panel: the faceplate with the module strips.
  *
  * The panel is built from the engine's own table. The long knob column of
  * a strip and the shorter mixer column beside it come from the parameters
@@ -32,6 +32,10 @@ import { printedWord } from './wordmark';
  * The panel never keeps a copy of the values: it shows what the engine
  * holds, read back from the engine's own snapshot. A value the engine
  * clamped is shown clamped.
+ *
+ * Two blank modules stand at the end of the row: plates with nothing on
+ * them but the screws in their corners, reserved for instruments the
+ * engine does not have yet.
  */
 
 export interface Panel {
@@ -70,6 +74,27 @@ function findInfo(
 }
 
 /**
+ * The four screws of a module plate, one in each corner.
+ *
+ * The plate may be an instrument module or a blank one; the screws are
+ * the same. The turn of each screw is fixed by the place it has on the
+ * panel: the machine looks the same on every load, and two renders of
+ * it never differ.
+ */
+function appendScrews(element: HTMLElement, place: string): void {
+  for (const corner of ['tl', 'tr', 'bl', 'br']) {
+    const screw = document.createElement('span');
+    screw.className = `screw screw-${corner}`;
+    screw.style.setProperty(
+      '--screw-angle',
+      `${screwAngle(place, corner)}deg`,
+    );
+    screw.setAttribute('aria-hidden', 'true');
+    element.append(screw);
+  }
+}
+
+/**
  * The turn of the slot of a screw, in degrees.
  *
  * A screw is turned by a hand, and no two of them end up pointing the
@@ -77,8 +102,8 @@ function findInfo(
  * panel: the machine looks the same on every load, and two renders of it
  * never differ.
  */
-function screwAngle(voice: Voice, corner: string): number {
-  const key = `${voice}/${corner}`;
+function screwAngle(place: string, corner: string): number {
+  const key = `${place}/${corner}`;
 
   /* A hash of the place of the screw, so that every one of them gets a
    * turn of its own. */
@@ -125,16 +150,7 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
     element.setAttribute('aria-label', `${name} module`);
 
     /* Every module is a plate of its own, screwed to the case. */
-    for (const corner of ['tl', 'tr', 'bl', 'br']) {
-      const screw = document.createElement('span');
-      screw.className = `screw screw-${corner}`;
-      screw.style.setProperty(
-        '--screw-angle',
-        `${screwAngle(voice, corner)}deg`,
-      );
-      screw.setAttribute('aria-hidden', 'true');
-      element.append(screw);
-    }
+    appendScrews(element, voice);
 
     const head = document.createElement('div');
     head.className = 'strip-head';
@@ -217,6 +233,26 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
       knobs: [],
       exportButton,
     });
+  }
+
+  /* The blank modules at the end of the row: plates with nothing on them
+   * but the screws in their corners, reserved for instruments the engine
+   * does not have yet. They carry no print, no lamp and no control, and
+   * nothing for the assistive technology either. The rail stands empty
+   * under them, so that the export controls keep standing under the
+   * modules they belong to. */
+  for (const place of ['blank-1', 'blank-2']) {
+    const element = document.createElement('div');
+    element.className = 'strip strip-blank';
+    element.dataset.place = place;
+    element.setAttribute('aria-hidden', 'true');
+    appendScrews(element, place);
+    plateRow.append(element);
+
+    const railCell = document.createElement('div');
+    railCell.className = 'faceplate-rail-cell';
+    railCell.setAttribute('aria-hidden', 'true');
+    rail.append(railCell);
   }
 
   faceplate.append(plateRow, rail);
