@@ -215,6 +215,23 @@ export const MIX_KNOBS: readonly KnobSpec[] = [
 ];
 
 /**
+ * The effects knob of a module: the share of the module that goes to the
+ * effects send of the kit.
+ *
+ * The engine has no effects bus, so this knob is a control of the host
+ * and not of the engine: it stands on the panel, it turns, and nothing is
+ * behind it yet.
+ */
+export const FX_SPEC: ParamSpec = {
+  label: 'fx',
+  unit: '',
+  taper: 'linear',
+  decimals: 2,
+  step: 0.02,
+  fineStep: 0.002,
+};
+
+/**
  * The label and the scale of a knob.
  *
  * A control of a metallic voice is described by its own spec: the same

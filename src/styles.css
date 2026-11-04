@@ -364,14 +364,19 @@ body {
 
 /* The two knob columns of a module: the sound knobs and the mixer. The
  * body of the plate takes the height the strip has, so the buttons of the
- * mixer column can stand at the foot of the module. */
+ * mixer column can stand at the foot of the module. Both columns take the
+ * whole height of the body, so that the effects knob at the foot of the
+ * mixer column stands on the line of the lowest sound knob. */
 .strip-body {
   width: 100%;
   flex: 1 1 auto;
   display: flex;
-  align-items: flex-start;
+  align-items: stretch;
   justify-content: center;
   gap: 10px;
+  /* The air under the body of the plate, before the mark of the machine
+   * at its foot. */
+  margin-bottom: 26px;
 }
 
 /* the knob column */
@@ -394,27 +399,29 @@ body {
 }
 
 /* The buttons of a module: the trigger, the memory positions and the
- * reset. They stand below the mixer knobs, with a little air between the
- * knobs and the first button. */
+ * reset. They stand below the mixer knobs, and the space of the plate
+ * that is left over is shared between them and the effects knob below. */
 .strip-buttons {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 9px;
-  margin-top: 24px;
+  margin-top: auto;
 }
 
 /* The second, shorter column of a module: the mixer of the channel. A
  * hairline divides it from the sound knobs, as a rule printed on the
  * plate would. The rule is drawn beside the column and takes no room of
  * its own, so the knobs and the button under them stand on the same
- * axis — and the rule stops where the knobs stop. */
+ * axis — and the rule stops where the knobs stop. The column is compact:
+ * the small knobs of the mixer do not stand on the lines of the big knobs
+ * beside them, they are a tight cluster of their own. */
 .strip-mix {
   position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 7px;
+  gap: 4px;
 }
 
 .strip-mix::before {
@@ -678,6 +685,9 @@ body {
   font-size: 16px;
   font-weight: 300;
   letter-spacing: 0.02em;
+  /* A fixed line box, so that the labels of the two knob columns stand on
+   * the same line when their cells stand on the same line. */
+  line-height: 20px;
   color: var(--plate-ink);
   text-shadow: 0 1px 0 rgba(255, 255, 255, 0.55);
   white-space: nowrap;
@@ -726,14 +736,25 @@ body {
 }
 
 /* The mixer column carries smaller knobs than the sound knobs: the
- * channel controls read as secondary to the voice itself. The knobs keep
- * the travel of a large knob — 3px of air above and below — so that the
- * centre of each small knob stands where the centre of a large knob
- * stands: vol against noise, pan against tone, sens against bend. */
-.strip-mix .knob {
-  width: 32px;
-  height: 32px;
-  margin: 3px 0;
+ * channel controls read as secondary to the voice itself. */
+.strip-mix .knob,
+.strip-fx .knob {
+  width: 28px;
+  height: 28px;
+}
+
+/* The effects knob stands at the foot of the mixer column, on the line of
+ * the lowest sound knob of the module. It is not wired to anything yet,
+ * so it is printed quietly. */
+.strip-fx {
+  margin-top: auto;
+}
+
+.strip-fx .knob-label {
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(20, 23, 26, 0.6);
 }
 
 .knob:focus-visible {

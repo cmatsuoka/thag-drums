@@ -21,6 +21,7 @@ import { CYMBAL_MODULE, HIHAT_MODULE } from './metallic';
 import { createKnob, type Knob } from './knob';
 import { MODULE_NAMES } from './names';
 import {
+  FX_SPEC,
   MIX_KNOBS,
   STRIP_KNOBS,
   specFor,
@@ -76,6 +77,8 @@ interface StripWidgets {
   readonly exportButton: HTMLButtonElement;
   /** The control that puts the knobs of the module back to their defaults. */
   readonly resetButton: HTMLButtonElement;
+  /** The effects knob of the module. It is not wired to anything yet. */
+  readonly fxKnob: Knob;
 }
 
 /**
@@ -293,13 +296,40 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
     buttons.className = 'strip-buttons';
     buttons.append(triggerButton, pads, resetButton);
 
-    /* The mixer column, the trigger button, the memory positions and the
-     * reset stand in one stack. The rule that divides the mixer from the
-     * sound knobs is drawn on the mixer column itself, so it stops where
-     * the knobs stop. */
+    /* The effects knob of the module: the share of the module that goes
+     * to the effects send of the kit. It stands below the buttons and it
+     * is not wired to anything yet — the engine has no effects bus. */
+    const fxKnob = createKnob({
+      label: FX_SPEC.label,
+      unit: FX_SPEC.unit,
+      min: 0,
+      max: 1,
+      decimals: FX_SPEC.decimals,
+      taper: FX_SPEC.taper,
+      step: FX_SPEC.step,
+      fineStep: FX_SPEC.fineStep,
+      value: 0,
+      onChange: () => {
+        /* Nothing is behind the knob yet. */
+      },
+    });
+
+    const fxCell = document.createElement('div');
+    fxCell.className = 'knob-cell strip-fx';
+
+    const fxLabel = document.createElement('span');
+    fxLabel.className = 'knob-label';
+    fxLabel.textContent = FX_SPEC.label;
+
+    fxCell.append(fxKnob.element, fxLabel);
+
+    /* The mixer column, the trigger button, the memory positions, the
+     * reset and the effects knob stand in one stack. The rule that
+     * divides the mixer from the sound knobs is drawn on the mixer column
+     * itself, so it stops where the knobs stop. */
     const mixStack = document.createElement('div');
     mixStack.className = 'strip-mix-stack';
-    mixStack.append(mixColumn, buttons);
+    mixStack.append(mixColumn, buttons, fxCell);
 
     const body = document.createElement('div');
     body.className = 'strip-body';
@@ -350,6 +380,7 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
       knobs: [],
       exportButton,
       resetButton,
+      fxKnob,
     });
   }
 
@@ -649,6 +680,7 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
         for (const widget of strip.knobs) {
           widget.knob.dispose();
         }
+        strip.fxKnob.dispose();
       }
       fitter.dispose();
       fitHost.remove();
