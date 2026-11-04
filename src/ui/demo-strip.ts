@@ -34,13 +34,13 @@ export function createDemoStrip(
 
   const title = document.createElement('p');
   title.className = 'demo-title';
-  title.textContent = 'Thagomizer';
+  title.textContent = 'THE THAGOMIZER';
   strip.append(title);
 
   const status = document.createElement('p');
   status.className = 'demo-status';
   status.id = 'engine-status';
-  status.textContent = 'libhive';
+  status.textContent = 'powered by libhive';
   strip.append(status);
 
   const error = document.createElement('p');
@@ -83,7 +83,7 @@ export function createDemoStrip(
     const major = (state.version >> 16) & 0xff;
     const minor = (state.version >> 8) & 0xff;
     const patch = state.version & 0xff;
-    status.textContent = `libhive ${major}.${minor}.${patch}`;
+    status.textContent = `powered by libhive ${major}.${minor}.${patch}`;
   };
 
   const unsubscribe = engine.onState((state) => {

@@ -518,6 +518,17 @@ body {
     inset 0 -3px 5px rgba(0, 0, 0, 0.55);
 }
 
+/* The mixer column carries smaller knobs than the sound knobs: the
+ * channel controls read as secondary to the voice itself. The knobs keep
+ * the travel of a large knob — 3px of air above and below — so that the
+ * centre of each small knob stands where the centre of a large knob
+ * stands: vol against noise, pan against tone, sens against bend. */
+.strip-mix .knob {
+  width: 32px;
+  height: 32px;
+  margin: 3px 0;
+}
+
 .knob:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 3px;
