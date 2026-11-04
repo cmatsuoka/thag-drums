@@ -1,4 +1,4 @@
-import type { Param } from '../audio/protocol';
+import type { Param, Voice } from '../audio/protocol';
 
 /**
  * The panel's own description of the engine's parameters.
@@ -84,6 +84,22 @@ export const PARAM_SPECS: Readonly<Record<Param, ParamSpec>> = {
     step: 0.02,
     fineStep: 0.002,
   },
+  sweep: {
+    label: 'sweep',
+    unit: '',
+    taper: 'linear',
+    decimals: 2,
+    step: 0.02,
+    fineStep: 0.002,
+  },
+  bellCymbal: {
+    label: 'bell/cym',
+    unit: '',
+    taper: 'linear',
+    decimals: 2,
+    step: 0.02,
+    fineStep: 0.002,
+  },
   volume: {
     label: 'vol',
     unit: '',
@@ -102,6 +118,37 @@ export const PARAM_SPECS: Readonly<Record<Param, ParamSpec>> = {
   },
   sensitivity: {
     label: 'sens',
+    unit: '',
+    taper: 'linear',
+    decimals: 2,
+    step: 0.02,
+    fineStep: 0.002,
+  },
+};
+
+/**
+ * The voices of the metallic engine: the Cymbal and the Hi-hat.
+ *
+ * The metallic voices are built from another engine than the drums, and
+ * two of their controls mean something else there.
+ */
+export const METALLIC_VOICES: readonly Voice[] = ['cymbal', 'hihat'];
+
+/**
+ * The controls of the metallic voices, where they differ from the drum
+ * voices.
+ *
+ * The Tone Pitch of a metallic voice scales the bank of its ten
+ * oscillators: it is a factor between 0 and 1, not a frequency in Hz. The
+ * Bend of a metallic voice sweeps that bank, in semitones, and the Sweep
+ * is the contour of the noise filter, signed: a positive sweep closes the
+ * filter as the sound dies, a negative one opens it.
+ */
+export const METALLIC_PARAM_SPECS: Readonly<
+  Partial<Record<Param, ParamSpec>>
+> = {
+  tonePitch: {
+    label: 'tone',
     unit: '',
     taper: 'linear',
     decimals: 2,
@@ -135,6 +182,25 @@ export const STRIP_KNOBS: readonly KnobSpec[] = [
 ];
 
 /**
+ * The long knob column of a metallic module, in the order of the engine's
+ * own parameters.
+ *
+ * The metallic voices carry their own six controls: the Sweep is the
+ * contour of the noise filter, the Tone Pitch scales the bank of the
+ * oscillators, the Bend sweeps that bank, the Decay is the release of the
+ * envelope, the Noise/Tone is the tone amount of the noise and the
+ * Bell/Cymbal is the balance between the bank and the noise.
+ */
+export const METALLIC_KNOBS: readonly KnobSpec[] = [
+  { kind: 'param', param: 'sweep' },
+  { kind: 'param', param: 'tonePitch' },
+  { kind: 'param', param: 'bend' },
+  { kind: 'param', param: 'decay' },
+  { kind: 'param', param: 'noiseTone' },
+  { kind: 'param', param: 'bellCymbal' },
+];
+
+/**
  * The second, shorter column of a module: the mixer of the channel.
  *
  * Volume, Pan and Sens are the engine's own per-voice channel controls,
@@ -148,7 +214,18 @@ export const MIX_KNOBS: readonly KnobSpec[] = [
   { kind: 'param', param: 'sensitivity' },
 ];
 
-/** The label and the scale of a knob. */
-export function specFor(spec: KnobSpec): ParamSpec {
+/**
+ * The label and the scale of a knob.
+ *
+ * A control of a metallic voice is described by its own spec: the same
+ * parameter of a drum voice means something else there.
+ */
+export function specFor(spec: KnobSpec, voice?: Voice): ParamSpec {
+  if (voice !== undefined && METALLIC_VOICES.includes(voice)) {
+    const metallic = METALLIC_PARAM_SPECS[spec.param];
+    if (metallic !== undefined) {
+      return metallic;
+    }
+  }
   return PARAM_SPECS[spec.param];
 }

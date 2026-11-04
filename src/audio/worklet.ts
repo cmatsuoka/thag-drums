@@ -4,6 +4,7 @@ import createHiveModule, {
   type HiveModuleOptions,
 } from '../../build/hive.mjs';
 import {
+  INSTRUMENT_COUNT,
   PARAM_COUNT,
   Q16_ONE,
   SOUND_PARAM_COUNT,
@@ -77,15 +78,15 @@ class HiveProcessor extends AudioWorkletProcessor {
   /* The trigger lamps. The engine knows the level of every instrument
    * before it sums the voices into the mix, so a lamp follows the level
    * of its own instrument. */
-  private readonly sounding = new Uint8Array(VOICE_COUNT);
+  private readonly sounding = new Uint8Array(INSTRUMENT_COUNT);
 
   /* The level of every instrument, in Q16.16, as the engine reports it for
    * the last rendered block. */
-  private readonly levels = new Int32Array(VOICE_COUNT);
+  private readonly levels = new Int32Array(INSTRUMENT_COUNT);
 
   /* The brightness of every lamp, from 0 to 1: the level of the instrument
    * with the fall of a lamp. */
-  private readonly lamp = new Float32Array(VOICE_COUNT);
+  private readonly lamp = new Float32Array(INSTRUMENT_COUNT);
 
   private version = 0;
   private active = false;
@@ -334,16 +335,16 @@ class HiveProcessor extends AudioWorkletProcessor {
     const fall = this.lampFall;
     let lit = false;
 
-    for (let voice = 0; voice < VOICE_COUNT; voice += 1) {
-      const raw = heap[base + voice] ?? 0;
+    for (let instrument = 0; instrument < INSTRUMENT_COUNT; instrument += 1) {
+      const raw = heap[base + instrument] ?? 0;
       const level = Math.min(1, Math.max(0, raw / Q16_ONE));
-      const envelope = this.lamp[voice] ?? 0;
+      const envelope = this.lamp[instrument] ?? 0;
       const next = level > envelope ? level : envelope * fall;
       const brightness = next < LAMP_EPSILON ? 0 : next;
 
-      this.levels[voice] = raw;
-      this.sounding[voice] = raw > 0 ? 1 : 0;
-      this.lamp[voice] = brightness;
+      this.levels[instrument] = raw;
+      this.sounding[instrument] = raw > 0 ? 1 : 0;
+      this.lamp[instrument] = brightness;
 
       if (brightness > 0) {
         lit = true;

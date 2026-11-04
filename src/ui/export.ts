@@ -7,8 +7,8 @@ import {
   type Voice,
 } from '../audio/protocol';
 import { fromQ16 } from '../audio/units';
-import { INSTRUMENT_NAMES } from '../audio/keyboard';
-import { PARAM_SPECS } from './params';
+import { MODULE_NAMES } from './names';
+import { specFor } from './params';
 
 /**
  * The export of a module's settings.
@@ -88,13 +88,13 @@ export function buildModuleExport(
     const q16 = state.values[base + paramIndex(param)] ?? 0;
     parameters[param] = {
       value: physical(q16),
-      unit: PARAM_SPECS[param].unit,
+      unit: specFor({ kind: 'param', param }, voice).unit,
       q16,
     };
   }
 
   return {
-    module: INSTRUMENT_NAMES[voice],
+    module: MODULE_NAMES[voice].spoken,
     voice,
     engine: {
       name: 'libhive',

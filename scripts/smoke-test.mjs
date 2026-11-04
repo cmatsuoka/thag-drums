@@ -29,6 +29,18 @@ const VOICE = {
   TOM_1: 2,
   TOM_2: 3,
   TOM_3: 4,
+  CYMBAL: 5,
+  HIHAT: 6,
+};
+const INSTRUMENT = {
+  KICK: 0,
+  SNARE: 1,
+  TOM_1: 2,
+  TOM_2: 3,
+  TOM_3: 4,
+  CYMBAL: 5,
+  HIHAT_CLOSED: 6,
+  HIHAT_OPEN: 7,
 };
 const PARAM = {
   NOISE_PITCH: 0,
@@ -37,12 +49,15 @@ const PARAM = {
   DECAY: 3,
   NOISE_TONE: 4,
   CLICK_TONE: 5,
-  VOLUME: 6,
-  PAN: 7,
-  SENSITIVITY: 8,
+  SWEEP: 6,
+  BELL_CYMBAL: 7,
+  VOLUME: 8,
+  PAN: 9,
+  SENSITIVITY: 10,
 };
-const VOICE_COUNT = 5;
-const PARAM_COUNT = 9;
+const VOICE_COUNT = 7;
+const INSTRUMENT_COUNT = 8;
+const PARAM_COUNT = 11;
 const PANEL_STRIDE = 2;
 const PARAM_INFO_STRIDE = 3;
 const STATUS = {
@@ -160,6 +175,60 @@ for (const voice of Object.values(VOICE)) {
   );
 }
 
+/* The metallic voices are compiled in: they carry their own faceplate,
+ * with a Sweep and a Bell/Cymbal of their own and no Noise or Click/Drum
+ * of the drums. */
+for (const voice of [VOICE.CYMBAL, VOICE.HIHAT]) {
+  equal(
+    engine.hive_param_supported(voice, PARAM.NOISE_PITCH),
+    0,
+    `the voice ${voice} has no noise pitch`,
+  );
+  equal(
+    engine.hive_param_supported(voice, PARAM.CLICK_TONE),
+    0,
+    `the voice ${voice} has no click/drum`,
+  );
+  equal(
+    engine.hive_param_supported(voice, PARAM.TONE_PITCH),
+    1,
+    `the voice ${voice} supports the tone pitch`,
+  );
+  equal(
+    engine.hive_param_supported(voice, PARAM.BEND),
+    1,
+    `the voice ${voice} supports the bend`,
+  );
+  equal(
+    engine.hive_param_supported(voice, PARAM.SWEEP),
+    1,
+    `the voice ${voice} supports the sweep`,
+  );
+  equal(
+    engine.hive_param_supported(voice, PARAM.BELL_CYMBAL),
+    1,
+    `the voice ${voice} supports the bell/cymbal`,
+  );
+}
+
+/* The Tone Pitch of a metallic voice scales the bank of its oscillators:
+ * it is a factor between 0 and 1, not a frequency. */
+const cymbalTone = paramInfo(infoPtr, VOICE.CYMBAL, PARAM.TONE_PITCH);
+equal(cymbalTone.min, 0, 'the Cymbal tone pitch starts at 0');
+equal(cymbalTone.max, Q16, 'the Cymbal tone pitch ends at 1');
+equal(cymbalTone.default, Q16, 'the Cymbal tone pitch defaults to 1');
+
+/* The Sweep of a metallic voice is the contour of its noise filter, and it
+ * is signed: one side dull, the other bright. */
+const cymbalSweep = paramInfo(infoPtr, VOICE.CYMBAL, PARAM.SWEEP);
+equal(cymbalSweep.min, -Q16, 'the Cymbal sweep starts at -1');
+equal(cymbalSweep.max, Q16, 'the Cymbal sweep ends at 1');
+equal(
+  cymbalSweep.default,
+  Math.round((7 / 10) * Q16),
+  'the Cymbal sweep defaults to 0.7',
+);
+
 /* An out-of-range value is clamped, stored clamped and reported. The value
  * has to stay inside the int32 range of the API. */
 const outOfRange = engine.hive_set_param(
@@ -197,7 +266,7 @@ equal(
  * rendered. */
 const outPtr = engine.malloc(BLOCK_FRAMES * 2 * Int16Array.BYTES_PER_ELEMENT);
 
-for (const instrument of Object.values(VOICE)) {
+for (const instrument of Object.values(INSTRUMENT)) {
   const status = engine.hive_trigger(context, instrument);
   equal(status, STATUS.OK, `the instrument ${instrument} is triggered`);
 }
@@ -311,6 +380,26 @@ equal(
   readI32(levelsPtr + 4),
   0,
   'the instruments that are silent report no level',
+);
+
+/* The two hi-hat instruments share one voice, so they report the same
+ * level: a hit on either of them lights both entries. */
+engine.hive_reset(context);
+engine.hive_trigger(context, INSTRUMENT.HIHAT_CLOSED);
+for (let block = 0; block < 4; block += 1) {
+  engine.hive_process(context, outPtr, BLOCK_FRAMES);
+}
+levelsPtr = engine.hive_instrument_levels(context);
+const closedLevel = readI32(levelsPtr + INSTRUMENT.HIHAT_CLOSED * 4);
+const openLevel = readI32(levelsPtr + INSTRUMENT.HIHAT_OPEN * 4);
+check(
+  closedLevel > 0,
+  `the closed hi-hat reports its own level (${closedLevel})`,
+);
+equal(
+  openLevel,
+  closedLevel,
+  'the two hi-hat instruments report the same level',
 );
 
 /* The reset restores the factory parameters. */

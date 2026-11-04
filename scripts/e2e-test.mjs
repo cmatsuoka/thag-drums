@@ -22,7 +22,7 @@ const URL = `http://localhost:${PORT}/`;
 const TIMEOUT = 20000;
 
 /* The order of the engine's own tables. */
-const VOICES = ['kick', 'snare', 'tom1', 'tom2', 'tom3'];
+const VOICES = ['kick', 'snare', 'tom1', 'tom2', 'tom3', 'cymbal', 'hihat'];
 const PARAMS = [
   'noisePitch',
   'tonePitch',
@@ -30,6 +30,8 @@ const PARAMS = [
   'decay',
   'noiseTone',
   'clickTone',
+  'sweep',
+  'bellCymbal',
   'volume',
   'pan',
   'sensitivity',
@@ -228,6 +230,8 @@ async function waitForEngineValue(page, voice, param, expected) {
         'decay',
         'noiseTone',
         'clickTone',
+        'sweep',
+        'bellCymbal',
         'volume',
         'pan',
         'sensitivity',
@@ -256,6 +260,8 @@ async function waitForEngineValueChange(page, voice, param, previous) {
         'decay',
         'noiseTone',
         'clickTone',
+        'sweep',
+        'bellCymbal',
         'volume',
         'pan',
         'sensitivity',
@@ -301,12 +307,12 @@ try {
   );
   const status = await page.locator('#engine-status').textContent();
   check(
-    (status ?? '').includes('libhive 0.2.0'),
+    (status ?? '').includes('libhive 0.4.0'),
     `the engine reports its version (${(status ?? '').trim()})`,
   );
 
-  /* The panel: the five module strips, the unwired hi-hat module and the
-   * unwired cymbal module at the end of the row. */
+  /* The panel: the five drum modules and the two metallic ones at the
+   * end of the row. */
   await page.waitForFunction(
     () => document.querySelectorAll('.strip .knob').length === 63,
     undefined,
@@ -328,9 +334,10 @@ try {
     'every module draws its lamp',
   );
 
-  /* The metallic modules: the faceplates of two instruments the engine
-   * does not have yet. Every part is drawn, nothing is wired to the
-   * engine. */
+  /* The metallic modules: the hi-hat and the cymbal, wired to the engine
+   * like the drums. They carry the controls the metallic voices have and
+   * nothing else: their own Sweep and Bell/Cymbal, and no Noise or
+   * Click/Drum of the drums. */
   for (const place of ['hihat', 'cymbal']) {
     equal(
       await page.locator(`.strip-${place}`).count(),
@@ -342,13 +349,23 @@ try {
       6,
       `the ${place} module has the six sound knobs`,
     );
-    for (const param of ['sweep', 'tone', 'bend', 'decay', 'noiseTone', 'bellCym']) {
+    for (const param of ['sweep', 'tonePitch', 'bend', 'decay', 'noiseTone', 'bellCymbal']) {
       equal(
         await page.locator(`.strip-${place} .knob[data-param="${param}"]`).count(),
         1,
         `the ${place} module has a ${param} knob`,
       );
     }
+    equal(
+      await page.locator(`.strip-${place} .knob[data-param="noisePitch"]`).count(),
+      0,
+      `the ${place} module has no noise knob`,
+    );
+    equal(
+      await page.locator(`.strip-${place} .knob[data-param="clickTone"]`).count(),
+      0,
+      `the ${place} module has no click/drum knob`,
+    );
     equal(
       await page.locator(`.strip-${place} .strip-mix .knob`).count(),
       3,
@@ -360,9 +377,9 @@ try {
       `the ${place} module carries the four screws`,
     );
     equal(
-      await page.locator(`.strip-${place} .strip-export`).count(),
-      0,
-      `the ${place} module has no export control`,
+      await page.locator(`.strip-export[data-voice="${place}"]`).count(),
+      1,
+      `the ${place} module has an export control`,
     );
     equal(
       await page.locator(`.strip-${place} .lamp`).count(),
@@ -392,6 +409,9 @@ try {
   /* No module carries a control the engine does not support: the Snare has
    * no sweep knob any more, and every voice has a Pan knob. */
   for (const voice of VOICES) {
+    if (voice === 'cymbal' || voice === 'hihat') {
+      continue;
+    }
     equal(
       await page.locator(`.strip[data-voice="${voice}"] .knob[data-param="sweep"]`).count(),
       0,
@@ -424,17 +444,18 @@ try {
       stored += 1;
     }
   }
-  equal(roles, 63, 'every knob is a slider');
-  equal(ranges, 63, 'every knob carries the range of its control');
+  const knobTotal = Object.keys(panel).length;
+  equal(roles, knobTotal, 'every knob is a slider');
+  equal(ranges, knobTotal, 'every knob carries the range of its control');
   equal(
     stored,
-    45,
+    knobTotal,
     'every wired knob shows the value the engine stored',
   );
   equal(
     engineState?.values?.length ?? 0,
-    45,
-    'the hi-hat is not wired to the engine',
+    VOICES.length * PARAMS.length,
+    'the engine holds the seven voices',
   );
 
   /* The keyboard plays the Bass, and the engine renders it. */
@@ -448,6 +469,69 @@ try {
   }
   await page.waitForTimeout(200);
   check((await readPeak(page)) > 0, 'the other voices play from the keyboard');
+
+  /* The metallic voices play from the keyboard as well: the cymbal on P,
+   * the closed hi-hat on J and the open one on L. */
+  for (const key of ['p', 'j', 'l']) {
+    await page.keyboard.press(key);
+  }
+  await page.waitForTimeout(200);
+  check(
+    (await readPeak(page)) > 0,
+    'the cymbal and the hi-hats play from the keyboard',
+  );
+
+  /* The lamp of the cymbal module is lit by the cymbal's own hit. */
+  await page.keyboard.press('p');
+  await page.waitForFunction(
+    () =>
+      document
+        .querySelector('#lamp-cymbal-trigger')
+        ?.classList.contains('is-lit') === true,
+    undefined,
+    { timeout: TIMEOUT },
+  );
+  check(true, 'the cymbal lamp lights while the cymbal is sounding');
+
+  /* The hi-hat has two instruments and one lamp: the closed one and the
+   * open one light the same lamp. */
+  await page.keyboard.press('j');
+  await page.waitForFunction(
+    () =>
+      document
+        .querySelector('#lamp-hihat-trigger')
+        ?.classList.contains('is-lit') === true,
+    undefined,
+    { timeout: TIMEOUT },
+  );
+  check(true, 'the hi-hat lamp lights while the hi-hat is sounding');
+
+  /* Every module carries a trigger button under its mixer knobs, and the
+   * button plays the module's own voice. */
+  equal(
+    await page.locator('.strip-trigger').count(),
+    VOICES.length,
+    'every module has a trigger button',
+  );
+
+  await page.locator('.strip[data-voice="snare"] .strip-trigger').click();
+  await waitForPeak(page, 0);
+  check(
+    (await readPeak(page)) > 0,
+    'the trigger button of a module plays its own voice',
+  );
+
+  await page.keyboard.press('l');
+  await page.waitForTimeout(200);
+  check(
+    await page.evaluate(
+      () =>
+        document
+          .querySelector('#lamp-hihat-trigger')
+          ?.classList.contains('is-lit') === true,
+    ),
+    'the open hi-hat lights the same lamp',
+  );
 
   /* The trigger lamp of the voice that was played is lit. */
   await page.keyboard.press('s');

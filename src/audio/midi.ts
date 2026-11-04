@@ -4,8 +4,10 @@ import type { Instrument } from './protocol';
  * The note-to-instrument table.
  *
  * The mapping is host-side data. Every instrument owns a small group of
- * neighbouring notes, so that a flam is two keys a finger apart. A note
- * that is not in the table is ignored.
+ * neighbouring notes, so that a flam is two keys a finger apart. The
+ * metallic voices sit above the drums: the Cymbal on the C# next to the
+ * high Tom, the Hi-hats on the F# and the A# of the octave above the
+ * Toms. A note that is not in the table is ignored.
  */
 export const MIDI_NOTE_MAP: Readonly<Record<number, Instrument>> = {
   36: 'kick', // C2
@@ -17,8 +19,11 @@ export const MIDI_NOTE_MAP: Readonly<Record<number, Instrument>> = {
   45: 'tom2', // A2
   46: 'tom2', // A#2
   47: 'tom2', // B2
+  49: 'cymbal', // C#3, next to the high Tom
   50: 'tom1', // D3
   51: 'tom1', // D#3
+  54: 'hihatClosed', // F#3
+  58: 'hihatOpen', // A#3
 };
 
 /** A MIDI input the demo can listen to. */

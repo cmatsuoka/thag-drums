@@ -380,18 +380,78 @@ body {
   margin-top: 2px;
 }
 
+/* The mixer of the channel and the trigger button under it stand in one
+ * stack, beside the sound knobs. */
+.strip-mix-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  margin-top: 2px;
+}
+
 /* The second, shorter column of a module: the mixer of the channel. A
  * hairline divides it from the sound knobs, as a rule printed on the
- * plate would. */
+ * plate would. The rule is drawn beside the column and takes no room of
+ * its own, so the knobs and the button under them stand on the same
+ * axis — and the rule stops where the knobs stop. */
 .strip-mix {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 7px;
-  margin-top: 2px;
-  padding-left: 10px;
-  border-left: 1px solid rgba(20, 23, 26, 0.18);
-  box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.4);
+}
+
+.strip-mix::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -6px;
+  width: 1px;
+  background: rgba(20, 23, 26, 0.18);
+  box-shadow: 1px 0 0 rgba(255, 255, 255, 0.4);
+}
+
+/* The trigger button of a module: a small square button under the mixer
+ * knobs that plays the module's own voice, the way a key of the keyboard
+ * does. It is a control of the demo and not of the hardware, so it is
+ * printed quietly: a plate of the same metal as the module, with a quiet
+ * letter on it. */
+.strip-trigger {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid rgba(20, 23, 26, 0.32);
+  border-radius: 7px;
+  background: linear-gradient(180deg, #eef1f2 0%, #d3d7da 60%, #c2c7ca 100%);
+  color: rgba(20, 23, 26, 0.62);
+  font-family: "Figtree", "Helvetica Neue", Helvetica, Arial, system-ui,
+    sans-serif;
+  font-size: 9px;
+  font-weight: 300;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.75),
+    0 1px 2px rgba(0, 0, 0, 0.28);
+}
+
+.strip-trigger:hover {
+  background: linear-gradient(180deg, #f4f6f7 0%, #dadee1 60%, #c9ced1 100%);
+  color: rgba(20, 23, 26, 0.8);
+}
+
+.strip-trigger:active {
+  background: linear-gradient(180deg, #b9bec1 0%, #cdd2d5 100%);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.32);
+}
+
+.strip-trigger:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
 /* The mark at the foot of a module: the name of the engine in a rounded

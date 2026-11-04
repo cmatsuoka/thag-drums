@@ -65,6 +65,11 @@ if "$EMCC" -Wfloat-conversion -Wdouble-promotion -Werror -E -x c /dev/null \
     FLOAT_WARN="-Wfloat-conversion -Wdouble-promotion"
 fi
 
+# The metallic engines are compiled in, the way the library's own Makefile
+# compiles them: the Hi-hat and the Cymbal are two voices of the library.
+# Without the definitions they would stay in the API and render silence.
+ENGINE_DEFS="-DLIBHIVE_ENGINE_HIHAT -DLIBHIVE_ENGINE_CYMBAL"
+
 # Only the glue is exported. The allocator stays on: the library calls
 # calloc() for its context and malloc() for its sine table.
 #
@@ -83,6 +88,7 @@ EXPORTED_FUNCTIONS='["_malloc","_free","_hive_version_number","_hive_create","_h
     -I"$LIBHIVE_DIR/src" \
     -std=c99 -O2 \
     -Wall -Wextra -Werror \
+    $ENGINE_DEFS \
     $FLOAT_WARN \
     --no-entry \
     -o "$OUT_DIR/hive.mjs" \

@@ -11,18 +11,26 @@
 export const Q16_ONE = 65536;
 
 /**
- * The five voices of the kit, in the library's own order. A voice and its
- * instrument are the same thing here: the library maps the five voices to
- * the five instruments one to one.
+ * The seven voices of the kit, in the library's own order: the five drum
+ * voices and the two metallic ones, the Cymbal and the Hi-hat.
  */
-export const VOICES = ['kick', 'snare', 'tom1', 'tom2', 'tom3'] as const;
+export const VOICES = [
+  'kick',
+  'snare',
+  'tom1',
+  'tom2',
+  'tom3',
+  'cymbal',
+  'hihat',
+] as const;
 export type Voice = (typeof VOICES)[number];
 export const VOICE_COUNT = VOICES.length;
 
 /**
- * The nine parameters of a voice, in the library's own order. The first
- * six are the sound parameters a tone holds; the last three are the
- * mixer values of the channel.
+ * The eleven parameters of a voice, in the library's own order. The first
+ * eight are the sound parameters a tone holds; the last three are the
+ * mixer values of the channel. The Sweep and the Bell/Cymbal belong to
+ * the metallic voices; the Noise and the Click/Drum to the drum voices.
  */
 export const PARAMS = [
   'noisePitch',
@@ -31,6 +39,8 @@ export const PARAMS = [
   'decay',
   'noiseTone',
   'clickTone',
+  'sweep',
+  'bellCymbal',
   'volume',
   'pan',
   'sensitivity',
@@ -49,19 +59,55 @@ export const SOUND_PARAMS = [
   'decay',
   'noiseTone',
   'clickTone',
+  'sweep',
+  'bellCymbal',
 ] as const;
 export type SoundParam = (typeof SOUND_PARAMS)[number];
 export const SOUND_PARAM_COUNT = SOUND_PARAMS.length;
 
-/** The instrument a trigger plays. */
-export type Instrument = Voice;
+/**
+ * The eight instruments a trigger can play, in the library's own order.
+ *
+ * The Hi-hat is one voice reached through two instruments: the closed one
+ * and the open one, which shares the voice, its parameters and its mixer
+ * values. The other six instruments map to the voice of the same name.
+ */
+export const INSTRUMENTS = [
+  'kick',
+  'snare',
+  'tom1',
+  'tom2',
+  'tom3',
+  'cymbal',
+  'hihatClosed',
+  'hihatOpen',
+] as const;
+export type Instrument = (typeof INSTRUMENTS)[number];
+export const INSTRUMENT_COUNT = INSTRUMENTS.length;
+
+/**
+ * The instruments of every voice: the lamps of a module are lit by the
+ * level of the instruments of its own voice, and the Hi-hat has two of
+ * them.
+ */
+export const VOICE_INSTRUMENTS: Readonly<
+  Record<Voice, readonly Instrument[]>
+> = {
+  kick: ['kick'],
+  snare: ['snare'],
+  tom1: ['tom1'],
+  tom2: ['tom2'],
+  tom3: ['tom3'],
+  cymbal: ['cymbal'],
+  hihat: ['hihatClosed', 'hihatOpen'],
+};
 
 export function voiceIndex(voice: Voice): number {
   return VOICES.indexOf(voice);
 }
 
 export function instrumentIndex(instrument: Instrument): number {
-  return VOICES.indexOf(instrument);
+  return INSTRUMENTS.indexOf(instrument);
 }
 
 export function paramIndex(param: Param): number {
@@ -95,9 +141,9 @@ export interface EngineState {
   /** 1 where the engine supports the voice and the parameter. */
   readonly supported: Uint8Array;
   /**
-   * 1 while the voice is still sounding. The engine knows a voice is
-   * sounding when it produces a signal, so the flag follows the level of
-   * the instrument.
+   * 1 while the instrument is still sounding. The engine knows an
+   * instrument is sounding when it produces a signal, so the flag follows
+   * the level of the instrument.
    */
   readonly sounding: Uint8Array;
   /**
@@ -110,7 +156,9 @@ export interface EngineState {
   /**
    * The brightness of the lamp of every instrument, from 0 to 1. The engine
    * reports the peak of a single block, so the worklet smooths it into the
-   * fall of a lamp: the light comes up at once and goes out slowly.
+   * fall of a lamp: the light comes up at once and goes out slowly. The
+   * lamp of a module is lit by the brightest of the instruments of its
+   * own voice.
    */
   readonly lamp: Float32Array;
   /** The version of the linked library, packed as 0x00MMmmpp. */
