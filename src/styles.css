@@ -362,9 +362,12 @@ body {
   }
 }
 
-/* the two knob columns of a module: the sound knobs and the mixer */
+/* The two knob columns of a module: the sound knobs and the mixer. The
+ * body of the plate takes the height the strip has, so the buttons of the
+ * mixer column can stand at the foot of the module. */
 .strip-body {
   width: 100%;
+  flex: 1 1 auto;
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -380,7 +383,7 @@ body {
   margin-top: 2px;
 }
 
-/* The mixer of the channel and the trigger button under it stand in one
+/* The mixer of the channel and the buttons of the module stand in one
  * stack, beside the sound knobs. */
 .strip-mix-stack {
   display: flex;
@@ -388,6 +391,17 @@ body {
   align-items: center;
   gap: 9px;
   margin-top: 2px;
+}
+
+/* The buttons of a module: the trigger, the memory positions and the
+ * reset. They stand below the mixer knobs, with a little air between the
+ * knobs and the first button. */
+.strip-buttons {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  margin-top: 24px;
 }
 
 /* The second, shorter column of a module: the mixer of the channel. A
@@ -426,7 +440,7 @@ body {
   border: 1px solid rgba(20, 23, 26, 0.32);
   border-radius: 7px;
   background: linear-gradient(180deg, #eef1f2 0%, #d3d7da 60%, #c2c7ca 100%);
-  color: rgba(20, 23, 26, 0.62);
+  color: rgba(45, 96, 63, 0.78);
   font-family: "Figtree", "Helvetica Neue", Helvetica, Arial, system-ui,
     sans-serif;
   font-size: 9px;
@@ -441,7 +455,7 @@ body {
 
 .strip-trigger:hover {
   background: linear-gradient(180deg, #f4f6f7 0%, #dadee1 60%, #c9ced1 100%);
-  color: rgba(20, 23, 26, 0.8);
+  color: rgba(45, 96, 63, 0.95);
 }
 
 .strip-trigger:active {
@@ -452,6 +466,133 @@ body {
 .strip-trigger:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
+}
+
+/* The small buttons of a module: the memory positions of the module and
+ * the reset of its knobs. The memory positions stand under the trigger
+ * button, in two columns, and the reset stands under them. */
+.strip-pads {
+  display: grid;
+  grid-template-columns: repeat(2, 22px);
+  gap: 4px;
+}
+
+.strip-mem,
+.strip-reset {
+  height: 22px;
+  padding: 0;
+  border: 1px solid rgba(20, 23, 26, 0.3);
+  border-radius: 5px;
+  background: linear-gradient(180deg, #e6e9ea 0%, #d0d4d7 60%, #c0c5c8 100%);
+  color: rgba(20, 23, 26, 0.62);
+  font-family: "Figtree", "Helvetica Neue", Helvetica, Arial, system-ui,
+    sans-serif;
+  font-size: 9px;
+  font-weight: 300;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+.strip-mem {
+  width: 22px;
+}
+
+.strip-mem:hover {
+  background: linear-gradient(180deg, #eff2f3 0%, #d8dcdf 60%, #c8cdd0 100%);
+  color: rgba(20, 23, 26, 0.8);
+}
+
+.strip-mem:active {
+  background: linear-gradient(180deg, #b7bcbf 0%, #cbd0d3 100%);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* The reset is the one control of a module that throws something away, so
+ * it is the quietest one on the plate: a small sunken square with a dark
+ * letter on it. It has to be held down for a second, and the lamp of the
+ * module blinks three times while it is held. */
+.strip-reset {
+  position: relative;
+  overflow: hidden;
+  /* The reset is as wide as the grid of the memory positions above it. */
+  width: 48px;
+  color: rgba(140, 28, 19, 0.78);
+  background: linear-gradient(180deg, #dcdfe0 0%, #c8cccf 100%);
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.18),
+    0 1px 0 rgba(255, 255, 255, 0.5);
+  touch-action: none;
+}
+
+.strip-reset:hover {
+  color: rgba(140, 28, 19, 0.95);
+}
+
+/* While the button is held, it is pressed in and a line of light runs
+ * along its lower edge: the line is the time the hold still has to run. */
+.strip-reset.is-armed {
+  background: linear-gradient(180deg, #b6bbbe 0%, #c6cbce 100%);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.32);
+}
+
+.strip-reset.is-armed::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  bottom: 3px;
+  height: 2px;
+  background: rgba(140, 28, 19, 0.85);
+  transform-origin: left center;
+  animation: hold-progress 1s linear forwards;
+}
+
+@keyframes hold-progress {
+  from {
+    transform: scaleX(0);
+  }
+
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* The lamp of a module blinks while its reset is armed: three blinks in
+ * the second the button is held. */
+.lamp.is-blinking {
+  --lamp-glow: 0.8;
+  background:
+    radial-gradient(
+      circle at 34% 28%,
+      rgb(var(--lamp-core) / var(--lamp-glow)),
+      rgb(var(--lamp-on) / var(--lamp-glow)) 66%
+    ),
+    radial-gradient(
+      circle at 34% 28%,
+      rgb(var(--lamp-glass)),
+      rgb(var(--lamp-off)) 72%
+    );
+  background-blend-mode: plus-lighter;
+  box-shadow:
+    0 0 8px rgb(var(--lamp-on) / 0.75),
+    inset 0 1px 2px rgba(255, 255, 255, 0.6),
+    0 1px 0 rgba(255, 255, 255, 0.35);
+  animation: lamp-blink 0.33s steps(1, end) 3;
+}
+
+@keyframes lamp-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+
+  50%,
+  100% {
+    opacity: 0.2;
+  }
 }
 
 /* The mark at the foot of a module: the name of the engine in a rounded
@@ -676,6 +817,17 @@ button:focus-visible,
 @media (prefers-reduced-motion: reduce) {
   .lamp.is-lit {
     animation: none;
+  }
+
+  /* The lamp of an armed reset stays lit and the line of light does not
+   * run: the hold is still a hold, it is only not shown. */
+  .lamp.is-blinking {
+    animation: none;
+  }
+
+  .strip-reset.is-armed::after {
+    animation: none;
+    transform: scaleX(1);
   }
 }
 

@@ -74,6 +74,8 @@ interface StripWidgets {
   readonly knobs: KnobWidget[];
   /** The control that writes the settings of the module to a file. */
   readonly exportButton: HTMLButtonElement;
+  /** The control that puts the knobs of the module back to their defaults. */
+  readonly resetButton: HTMLButtonElement;
 }
 
 /**
@@ -143,6 +145,23 @@ const TRIGGER_INSTRUMENT: Readonly<Record<Voice, Instrument>> = {
   hihat: 'hihatClosed',
 };
 
+/**
+ * How long the reset button of a module must be held down, in
+ * milliseconds.
+ *
+ * The reset throws the knobs of the module away, so it is not a thing a
+ * press should do by accident: the button has to be held down, and the
+ * lamp of the module blinks three times while it is held.
+ */
+const RESET_HOLD_MS = 1000;
+
+/**
+ * The number of memory positions of a module. The four buttons for them
+ * stand under the knobs of the module, in two columns; they are not wired
+ * yet.
+ */
+const MEMORY_POSITIONS = 4;
+
 function findInfo(
   info: readonly ParamInfo[],
   voice: Voice,
@@ -169,6 +188,10 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
   rail.className = 'faceplate-rail';
 
   const strips = new Map<Voice, StripWidgets>();
+
+  /* The factory value of every control of every voice, as the engine's own
+   * table reports it: the reset of a module puts its knobs back to these. */
+  const voiceDefaults = new Map<Voice, Map<Param, number>>();
 
   for (const voice of PANEL_ORDER) {
     const module = MODULES[voice];
@@ -227,12 +250,56 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
       engine.trigger(TRIGGER_INSTRUMENT[voice], 127);
     });
 
-    /* The mixer column and the trigger button stand in one stack. The rule
-     * that divides the mixer from the sound knobs is drawn on the mixer
-     * column itself, so it stops where the knobs stop. */
+    /* The memory positions of the module: four buttons for the tones the
+     * module will hold. They are not wired yet — the four tones of a
+     * module are a design that is still deferred. */
+    const pads = document.createElement('div');
+    pads.className = 'strip-pads';
+
+    for (let position = 1; position <= MEMORY_POSITIONS; position += 1) {
+      const memoryButton = document.createElement('button');
+      memoryButton.type = 'button';
+      memoryButton.className = 'strip-mem';
+      memoryButton.dataset.voice = voice;
+      memoryButton.dataset.position = String(position);
+      memoryButton.textContent = String(position);
+      memoryButton.setAttribute(
+        'aria-label',
+        `memory position ${position} of the ${name.spoken} module`,
+      );
+      /* The button is there, but nothing is behind it yet. */
+      memoryButton.setAttribute('aria-disabled', 'true');
+      pads.append(memoryButton);
+    }
+
+    /* The reset of the module: it puts the knobs back to their defaults.
+     * It is the one control of a module that throws something away, so it
+     * is the quietest one and it has to be held down. */
+    const resetButton = document.createElement('button');
+    resetButton.type = 'button';
+    resetButton.className = 'strip-reset';
+    resetButton.dataset.voice = voice;
+    resetButton.textContent = 'RST';
+    resetButton.setAttribute(
+      'aria-label',
+      `reset the knobs of the ${name.spoken} module`,
+    );
+
+    wireReset(voice, triggerLamp, resetButton);
+
+    /* The buttons of the module: the trigger, the memory positions and
+     * the reset. They stand at the foot of the mixer column. */
+    const buttons = document.createElement('div');
+    buttons.className = 'strip-buttons';
+    buttons.append(triggerButton, pads, resetButton);
+
+    /* The mixer column, the trigger button, the memory positions and the
+     * reset stand in one stack. The rule that divides the mixer from the
+     * sound knobs is drawn on the mixer column itself, so it stops where
+     * the knobs stop. */
     const mixStack = document.createElement('div');
     mixStack.className = 'strip-mix-stack';
-    mixStack.append(mixColumn, triggerButton);
+    mixStack.append(mixColumn, buttons);
 
     const body = document.createElement('div');
     body.className = 'strip-body';
@@ -282,12 +349,97 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
       mixColumn,
       knobs: [],
       exportButton,
+      resetButton,
     });
   }
 
   faceplate.append(plateRow, rail);
   fitHost.append(faceplate);
   host.append(fitHost);
+
+  /**
+   * Put the knobs of a module back to their defaults.
+   *
+   * The defaults are the factory values of the engine's own table. They
+   * are written to the engine, and the engine holds them: the panel reads
+   * them back like every other value, so the knobs follow the engine and
+   * not the other way round.
+   */
+  function resetVoice(voice: Voice): void {
+    const defaults = voiceDefaults.get(voice);
+    if (defaults === undefined) {
+      return;
+    }
+    for (const [param, value] of defaults) {
+      engine.setParam(voice, param, value);
+    }
+  }
+
+  /**
+   * Wire the reset button of a module.
+   *
+   * The reset throws the knobs of the module away, so a press is not
+   * enough: the button has to be held down for a second, and the lamp of
+   * the module blinks three times while it is held. Letting go before the
+   * hold is over leaves the module as it is.
+   */
+  function wireReset(
+    voice: Voice,
+    lamp: HTMLElement,
+    button: HTMLButtonElement,
+  ): void {
+    let timer: number | null = null;
+
+    const stop = (): void => {
+      if (timer !== null) {
+        window.clearTimeout(timer);
+        timer = null;
+      }
+      button.classList.remove('is-armed');
+      lamp.classList.remove('is-blinking');
+    };
+
+    const arm = (): void => {
+      if (timer !== null) {
+        return;
+      }
+      button.classList.add('is-armed');
+      lamp.classList.add('is-blinking');
+      timer = window.setTimeout(() => {
+        timer = null;
+        resetVoice(voice);
+        stop();
+      }, RESET_HOLD_MS);
+    };
+
+    button.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0) {
+        return;
+      }
+      /* The button keeps the pointer while it is held, so the hold does
+       * not end when the pointer wanders off it. */
+      button.setPointerCapture(event.pointerId);
+      arm();
+    });
+
+    for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
+      button.addEventListener(type, stop);
+    }
+
+    /* The keyboard holds the button down the same way: the key goes down
+     * and stays down. */
+    button.addEventListener('keydown', (event) => {
+      if (event.key !== ' ' && event.key !== 'Enter') {
+        return;
+      }
+      event.preventDefault();
+      arm();
+    });
+
+    for (const type of ['keyup', 'blur']) {
+      button.addEventListener(type, stop);
+    }
+  }
 
   const fitter: Fitter = createFitter(fitHost, faceplate);
 
@@ -383,6 +535,10 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
        * these and nothing else. */
       const supported: Param[] = [];
 
+      /* The factory value of every control of this voice: the reset of the
+       * module puts its knobs back to these. */
+      const defaults = new Map<Param, number>();
+
       for (const spec of MODULES[voice].soundKnobs) {
         const index = paramIndex(spec.param);
         const entry = findInfo(info, voice, index);
@@ -400,6 +556,7 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
         strip.knobColumn.append(widget.cell);
         strip.knobs.push(widget);
         supported.push(spec.param);
+        defaults.set(spec.param, entry.default);
       }
 
       /* The mixer of the channel, in its own shorter column. */
@@ -420,9 +577,11 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
         strip.mixColumn.append(widget.cell);
         strip.knobs.push(widget);
         supported.push(spec.param);
+        defaults.set(spec.param, entry.default);
       }
 
       supportedParams.set(voice, supported);
+      voiceDefaults.set(voice, defaults);
     }
 
     fitter.update();

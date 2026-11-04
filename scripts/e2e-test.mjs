@@ -521,6 +521,75 @@ try {
     'the trigger button of a module plays its own voice',
   );
 
+  /* Every module carries four memory buttons and a reset button. */
+  equal(
+    await page.locator('.strip-mem').count(),
+    VOICES.length * 4,
+    'every module has four memory buttons',
+  );
+  equal(
+    await page.locator('.strip-reset').count(),
+    VOICES.length,
+    'every module has a reset button',
+  );
+
+  /* The reset of a module throws the knobs away, so it has to be held
+   * down: a short press leaves the module as it is, and the lamp of the
+   * module blinks while the button is held. */
+  const tomTone = page.locator(
+    '.strip[data-voice="tom1"] .knob[data-param="tonePitch"]',
+  );
+  const tomDefault = await page.evaluate(
+    ({ voice, param }) => {
+      const info = window.hive?.paramInfo ?? [];
+      const entry = info.find((e) => e.voice === voice && e.param === param);
+      return entry?.default ?? null;
+    },
+    {
+      voice: VOICES.indexOf('tom1'),
+      param: PARAMS.indexOf('tonePitch'),
+    },
+  );
+
+  await tomTone.press('ArrowUp');
+  await waitForEngineValueChange(page, 'tom1', 'tonePitch', tomDefault);
+
+  const resetButton = page.locator('.strip[data-voice="tom1"] .strip-reset');
+  const resetBox = await resetButton.boundingBox();
+  await page.mouse.move(
+    resetBox.x + resetBox.width / 2,
+    resetBox.y + resetBox.height / 2,
+  );
+  await page.mouse.down();
+  await page.waitForTimeout(200);
+  check(
+    await page.evaluate(
+      () =>
+        document
+          .querySelector('#lamp-tom1-trigger')
+          ?.classList.contains('is-blinking') === true,
+    ),
+    'the lamp of the module blinks while the reset is held',
+  );
+  await page.mouse.up();
+  await page.waitForTimeout(200);
+  check(
+    (await readEngineValues(page))[engineIndex('tom1', 'tonePitch')] !==
+      tomDefault,
+    'a short press on the reset leaves the knobs where they are',
+  );
+
+  /* A hold of a second puts the knobs of the module back to their
+   * defaults. */
+  await page.mouse.down();
+  await page.waitForTimeout(1400);
+  await page.mouse.up();
+  await waitForEngineValue(page, 'tom1', 'tonePitch', tomDefault);
+  check(
+    Number(await tomTone.getAttribute('data-value')) === tomDefault,
+    'a hold on the reset puts the knobs back to their defaults',
+  );
+
   await page.keyboard.press('l');
   await page.waitForTimeout(200);
   check(
