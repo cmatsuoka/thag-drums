@@ -23,6 +23,10 @@ const TIMEOUT = 20000;
 
 /* The order of the engine's own tables. */
 const VOICES = ['kick', 'snare', 'tom1', 'tom2', 'tom3', 'cymbal', 'hihat'];
+
+/* The voices that have a plate of their own on the panel: the cymbal has
+ * none for now, and the effects module is no voice of the engine. */
+const PLATED_VOICES = ['kick', 'snare', 'tom1', 'tom2', 'tom3', 'hihat'];
 const PARAMS = [
   'noisePitch',
   'tonePitch',
@@ -196,7 +200,7 @@ async function readPanelValues(page) {
     const values = {};
     for (const knob of document.querySelectorAll('.knob')) {
       const strip = knob.closest('.strip');
-      const key = `${strip?.dataset.voice ?? strip?.dataset.place}.${knob.dataset.param}`;
+      const key = `${strip?.dataset.voice ?? strip?.dataset.place}.${knob.dataset.param ?? knob.dataset.control}`;
       values[key] = {
         stored: Number(knob.getAttribute('data-value')),
         aria: knob.getAttribute('aria-valuenow'),
@@ -311,10 +315,10 @@ try {
     `the engine reports its version (${(status ?? '').trim()})`,
   );
 
-  /* The panel: the five drum modules and the two metallic ones at the
-   * end of the row. */
+  /* The panel: the five drum modules, the hi-hat and the effects module
+   * at the end of the row. The cymbal has no plate of its own for now. */
   await page.waitForFunction(
-    () => document.querySelectorAll('.strip .knob').length === 63,
+    () => document.querySelectorAll('.strip .knob').length === 69,
     undefined,
     { timeout: TIMEOUT },
   );
@@ -330,15 +334,71 @@ try {
   );
   equal(
     await page.locator('.strip .lamp').count(),
-    7,
-    'every module draws its lamp',
+    6,
+    'every voice module draws its lamp',
   );
 
-  /* The metallic modules: the hi-hat and the cymbal, wired to the engine
-   * like the drums. They carry the controls the metallic voices have and
-   * nothing else: their own Sweep and Bell/Cymbal, and no Noise or
-   * Click/Drum of the drums. */
-  for (const place of ['hihat', 'cymbal']) {
+  /* The effects module: a plate of its own, with a layout of its own. It
+   * has no lamp, no trigger and no reset: it carries the controls of the
+   * kit's effects and a display that shows the output signal. */
+  equal(
+    await page.locator('.strip-fx-module').count(),
+    1,
+    'the effects module is on the panel',
+  );
+  equal(
+    await page.locator('.strip-fx-module .lamp').count(),
+    0,
+    'the effects module draws no lamp',
+  );
+  equal(
+    await page.locator('.strip-fx-module .strip-trigger').count(),
+    0,
+    'the effects module has no trigger button',
+  );
+  equal(
+    await page.locator('.strip-fx-module .strip-reset').count(),
+    0,
+    'the effects module has no reset button',
+  );
+  equal(
+    await page.locator('.strip-fx-module .knob').count(),
+    9,
+    'the effects module has nine knobs',
+  );
+  equal(
+    (await page.locator('.strip-fx-module .fx-caption').allTextContents()).join(','),
+    'reverb,gate',
+    'the effects module names its two effects',
+  );
+  for (const control of [
+    'roomSize',
+    'damp',
+    'width',
+    'level',
+    'threshold',
+    'range',
+    'attack',
+    'hold',
+    'release',
+  ]) {
+    equal(
+      await page.locator(`.strip-fx-module .knob[data-control="${control}"]`).count(),
+      1,
+      `the effects module has a ${control} knob`,
+    );
+  }
+  equal(
+    await page.locator('.strip-fx-module .fx-scope').count(),
+    1,
+    'the effects module has a display',
+  );
+
+  /* The metallic module: the hi-hat, wired to the engine like the drums.
+   * It carries the controls the metallic voices have and nothing else:
+   * its own Sweep and Bell/Cymbal, and no Noise or Click/Drum of the
+   * drums. */
+  for (const place of ['hihat']) {
     equal(
       await page.locator(`.strip-${place}`).count(),
       1,
@@ -388,8 +448,9 @@ try {
     );
   }
 
-  /* Every module has a second, shorter column: the mixer of the channel. */
-  for (const voice of VOICES) {
+  /* Every voice module has a second, shorter column: the mixer of the
+   * channel. */
+  for (const voice of PLATED_VOICES) {
     equal(
       await page.locator(`.strip[data-voice="${voice}"] .strip-mix .knob`).count(),
       3,
@@ -408,8 +469,8 @@ try {
 
   /* No module carries a control the engine does not support: the Snare has
    * no sweep knob any more, and every voice has a Pan knob. */
-  for (const voice of VOICES) {
-    if (voice === 'cymbal' || voice === 'hihat') {
+  for (const voice of PLATED_VOICES) {
+    if (voice === 'hihat') {
       continue;
     }
     equal(
@@ -418,7 +479,7 @@ try {
       `the ${voice} has no sweep knob`,
     );
   }
-  for (const voice of VOICES) {
+  for (const voice of PLATED_VOICES) {
     equal(
       await page.locator(`.strip[data-voice="${voice}"] .knob[data-param="pan"]`).count(),
       1,
@@ -445,11 +506,15 @@ try {
     }
   }
   const knobTotal = Object.keys(panel).length;
+  const wiredTotal = Object.keys(panel).filter((key) => {
+    const [voice, param] = key.split('.');
+    return VOICES.includes(voice) && PARAMS.includes(param);
+  }).length;
   equal(roles, knobTotal, 'every knob is a slider');
   equal(ranges, knobTotal, 'every knob carries the range of its control');
   equal(
     stored,
-    knobTotal,
+    wiredTotal,
     'every wired knob shows the value the engine stored',
   );
   equal(
@@ -481,18 +546,6 @@ try {
     'the cymbal and the hi-hats play from the keyboard',
   );
 
-  /* The lamp of the cymbal module is lit by the cymbal's own hit. */
-  await page.keyboard.press('p');
-  await page.waitForFunction(
-    () =>
-      document
-        .querySelector('#lamp-cymbal-trigger')
-        ?.classList.contains('is-lit') === true,
-    undefined,
-    { timeout: TIMEOUT },
-  );
-  check(true, 'the cymbal lamp lights while the cymbal is sounding');
-
   /* The hi-hat has two instruments and one lamp: the closed one and the
    * open one light the same lamp. */
   await page.keyboard.press('j');
@@ -506,12 +559,13 @@ try {
   );
   check(true, 'the hi-hat lamp lights while the hi-hat is sounding');
 
-  /* Every module carries a trigger button under its mixer knobs, and the
-   * button plays the module's own voice. */
+  /* Every voice module carries a trigger button under its mixer knobs,
+   * and the button plays the module's own voice. The effects module has
+   * no voice of its own, so it has no trigger button. */
   equal(
     await page.locator('.strip-trigger').count(),
-    VOICES.length,
-    'every module has a trigger button',
+    PLATED_VOICES.length,
+    'every voice module has a trigger button',
   );
 
   await page.locator('.strip[data-voice="snare"] .strip-trigger').click();
@@ -521,16 +575,16 @@ try {
     'the trigger button of a module plays its own voice',
   );
 
-  /* Every module carries four memory buttons and a reset button. */
+  /* Every voice module carries four memory buttons and a reset button. */
   equal(
     await page.locator('.strip-mem').count(),
-    VOICES.length * 4,
-    'every module has four memory buttons',
+    PLATED_VOICES.length * 4,
+    'every voice module has four memory buttons',
   );
   equal(
     await page.locator('.strip-reset').count(),
-    VOICES.length,
-    'every module has a reset button',
+    PLATED_VOICES.length,
+    'every voice module has a reset button',
   );
 
   /* The reset of a module throws the knobs away, so it has to be held
@@ -661,7 +715,10 @@ try {
   /* Every knob that reaches the engine is operable with the keyboard
    * alone. The hi-hat knobs turn but send nothing anywhere. */
   const before = await readEngineState(page);
-  const knobs = page.locator('.strip[data-voice] .knob');
+  /* The knobs that reach the engine are the ones of a voice: the effects
+   * send of a module and the knobs of the effects module belong to the
+   * host, and they are not wired to anything yet. */
+  const knobs = page.locator('.strip[data-voice] .knob[data-param]');
   const knobCount = await knobs.count();
   for (let index = 0; index < knobCount; index += 1) {
     await knobs.nth(index).press('ArrowDown');
@@ -816,9 +873,9 @@ try {
     'at sensitivity 0 the knob gives the soft hit its full strike level',
   );
 
-  /* Every module can write its settings to a file. The file carries the
-   * values the engine holds for that module. */
-  for (const voice of VOICES) {
+  /* Every voice module can write its settings to a file. The file carries
+   * the values the engine holds for that module. */
+  for (const voice of PLATED_VOICES) {
     equal(
       await page.locator(`.strip-export[data-voice="${voice}"]`).count(),
       1,

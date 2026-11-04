@@ -132,6 +132,12 @@ export interface ParamInfo {
 }
 
 /**
+ * The number of points of the scope trace: the points of the waveform of
+ * the output signal that the effects module draws on its display.
+ */
+export const SCOPE_POINTS = 64;
+
+/**
  * The state the engine reports: the values it holds, read back from the
  * engine itself. The panel never keeps a parallel copy of these.
  */
@@ -140,6 +146,11 @@ export interface EngineState {
   readonly values: Int32Array;
   /** 1 where the engine supports the voice and the parameter. */
   readonly supported: Uint8Array;
+  /**
+   * The waveform of the output signal, as the scope of the effects module
+   * draws it: one signed peak per point, from the left to the right.
+   */
+  readonly scope: Float32Array;
   /**
    * 1 while the instrument is still sounding. The engine knows an
    * instrument is sounding when it produces a signal, so the flag follows

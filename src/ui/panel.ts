@@ -17,6 +17,7 @@ import {
   downloadModuleExport,
 } from './export';
 import { createFitter, type Fitter } from './fit';
+import { createFxModule } from './fx';
 import { CYMBAL_MODULE, HIHAT_MODULE } from './metallic';
 import { createKnob, type Knob } from './knob';
 import { MODULE_NAMES } from './names';
@@ -47,9 +48,10 @@ import { printedWord } from './wordmark';
  * Under the mixer knobs of every module stands a small trigger button: it
  * plays the module's own voice, the way a key of the keyboard does.
  *
- * The hi-hat module and the cymbal module stand at the end of the row:
- * they are the metallic voices of the engine, and they are wired to it
- * like the drums are.
+ * The hi-hat module stands at the end of the row, and the effects module
+ * after it: the hi-hat is the metallic voice of the engine, and the
+ * effects module carries the controls of the kit's effects, which the
+ * engine has no bus for.
  */
 
 export interface Panel {
@@ -95,8 +97,12 @@ interface ModuleDescriptor {
 }
 
 /**
- * The order of the modules on the panel: the five drums, then the hi-hat
- * and the cymbal at the end of the row.
+ * The order of the modules on the panel: the five drums, the hi-hat and
+ * the effects module at the end of the row.
+ *
+ * The Cymbal has no plate of its own for now: the engine still has the
+ * voice, and it is still played from the keyboard and from a MIDI
+ * controller, but the panel carries no faceplate for it.
  */
 const PANEL_ORDER: readonly Voice[] = [
   'kick',
@@ -105,7 +111,6 @@ const PANEL_ORDER: readonly Voice[] = [
   'tom2',
   'tom3',
   'hihat',
-  'cymbal',
 ];
 
 /**
@@ -384,6 +389,20 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
     });
   }
 
+  /* The effects module stands at the end of the row, where the Cymbal
+   * stood before it: it is a plate of its own, with a layout of its own,
+   * and it carries no voice of the engine. */
+  const fx = createFxModule();
+  plateRow.append(fx.element);
+
+  /* The rail of the case carries a cell for every plate, so that a
+   * control on the rail stands under the module it belongs to. The
+   * effects module has nothing to export: the engine holds no settings
+   * for it. */
+  const fxRailCell = document.createElement('div');
+  fxRailCell.className = 'faceplate-rail-cell';
+  rail.append(fxRailCell);
+
   faceplate.append(plateRow, rail);
   fitHost.append(faceplate);
   host.append(fitHost);
@@ -620,6 +639,10 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
   const applyState = (state: EngineState): void => {
     lastState = state;
 
+    /* The display of the effects module shows the shape of the output
+     * signal, as the engine renders it. */
+    fx.updateScope(state.scope);
+
     for (const voice of PANEL_ORDER) {
       const strip = strips.get(voice);
       if (strip === undefined) {
@@ -676,6 +699,7 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
     dispose(): void {
       unsubscribeReady();
       unsubscribeState();
+      fx.dispose();
       for (const strip of strips.values()) {
         for (const widget of strip.knobs) {
           widget.knob.dispose();

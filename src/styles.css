@@ -757,6 +757,96 @@ body {
   color: rgba(20, 23, 26, 0.6);
 }
 
+/* The effects module: a plate of its own, with a layout of its own. It
+ * has no sound column and no mixer column: the controls of the kit's
+ * effects stand on it in two clusters, one for the reverb and one for
+ * the gate, and each cluster is a grid of two by two knobs under the name
+ * of the effect. The plate is as wide as every other plate of the row. */
+.strip-fx-module {
+  padding-bottom: 19px;
+}
+
+/* The display of the effects module: a small screen of the kind that
+ * shows the shape of the signal. It stands at the top of the plate, under
+ * the name of the module. */
+.fx-display {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  margin-top: 2px;
+}
+
+.fx-scope {
+  width: 120px;
+  height: 36px;
+  display: block;
+  border-radius: 3px;
+  border: 1px solid rgba(20, 23, 26, 0.55);
+  background: #04120a;
+  box-shadow:
+    inset 0 1px 3px rgba(0, 0, 0, 0.8),
+    0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+/* The body of the effects module: the two clusters stand on it, one
+ * above the other, and the space that is left over is shared between
+ * them. */
+.fx-body {
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-evenly;
+  gap: 14px;
+}
+
+/* One cluster of the effects module: the name of the effect and the grid
+ * of its knobs. */
+.fx-cluster {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+/* The name of an effect, printed on the plate above its knobs. */
+.fx-caption {
+  font-family: "Figtree", "Helvetica Neue", Helvetica, Arial, system-ui,
+    sans-serif;
+  font-size: 12px;
+  font-weight: 300;
+  letter-spacing: 0.2em;
+  text-transform: lowercase;
+  color: rgba(20, 23, 26, 0.6);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+/* The grid of the knobs of an effect: two columns of two knobs. */
+.fx-grid {
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  justify-items: center;
+  gap: 8px 10px;
+}
+
+/* The release of the gate stands alone, in the middle of the plate. */
+.fx-release {
+  display: flex;
+  justify-content: center;
+  margin-top: 2px;
+}
+
+/* The knobs of the effects module are smaller than the knobs of a voice:
+ * they stand in grids, and the grid is the louder thing. */
+.strip-fx-module .knob {
+  width: 30px;
+  height: 30px;
+}
+
+.strip-fx-module .knob-label {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  line-height: 16px;
+}
+
 .knob:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 3px;

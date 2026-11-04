@@ -7,6 +7,7 @@ import {
   INSTRUMENT_COUNT,
   PARAM_COUNT,
   Q16_ONE,
+  SCOPE_POINTS,
   SOUND_PARAM_COUNT,
   VOICE_COUNT,
   type EngineCommand,
@@ -31,6 +32,12 @@ const LAMP_FALL = 0.12;
 
 /* Below this the lamp is off: the envelope has died out. */
 const LAMP_EPSILON = 1 / 4096;
+
+/* The scope of the effects module: the waveform of the output signal.
+ * The worklet keeps the last frames of the output in a ring and draws one
+ * point of the trace for every few frames of it. */
+const SCOPE_RING = 2048;
+const SCOPE_BUCKET = 16;
 
 interface WorkletOptions {
   processorOptions?: {
@@ -88,6 +95,12 @@ class HiveProcessor extends AudioWorkletProcessor {
    * with the fall of a lamp. */
   private readonly lamp = new Float32Array(INSTRUMENT_COUNT);
 
+  /* The last frames of the output signal, in a ring, and the trace the
+   * scope of the effects module draws. */
+  private readonly ring = new Float32Array(SCOPE_RING);
+  private readonly scope = new Float32Array(SCOPE_POINTS);
+  private ringPos = 0;
+
   private version = 0;
   private active = false;
   private peak = 0;
@@ -144,24 +157,29 @@ class HiveProcessor extends AudioWorkletProcessor {
 
     module._hive_process(this.context, this.outPtr, BLOCK_FRAMES);
 
-    const left = output[0];
-    const right = output[1] ?? output[0];
-    const samples = this.samples;
-    if (left !== undefined && right !== undefined && samples !== null) {
-      let peak = 0;
-      for (let frame = 0; frame < BLOCK_FRAMES; frame += 1) {
-        const index = frame * 2;
-        const l = samples[index] ?? 0;
-        const r = samples[index + 1] ?? 0;
-        left[frame] = l / 32768;
-        right[frame] = r / 32768;
-        const magnitude = Math.max(Math.abs(l), Math.abs(r));
-        if (magnitude > peak) {
-          peak = magnitude;
+      const left = output[0];
+      const right = output[1] ?? output[0];
+      const samples = this.samples;
+      if (left !== undefined && right !== undefined && samples !== null) {
+        let peak = 0;
+        for (let frame = 0; frame < BLOCK_FRAMES; frame += 1) {
+          const index = frame * 2;
+          const l = samples[index] ?? 0;
+          const r = samples[index + 1] ?? 0;
+          left[frame] = l / 32768;
+          right[frame] = r / 32768;
+          const magnitude = Math.max(Math.abs(l), Math.abs(r));
+          if (magnitude > peak) {
+            peak = magnitude;
+          }
+          /* The signal goes into the ring of the scope: the trace is
+           * drawn from the output of the engine, the way it leaves it. */
+          this.ring[this.ringPos] = ((l + r) / 2) / 32768;
+          this.ringPos = (this.ringPos + 1) % SCOPE_RING;
         }
+        this.peak = peak;
       }
-      this.peak = peak;
-    }
+
 
     this.sinceState += BLOCK_FRAMES;
     this.readLevels();
@@ -429,12 +447,37 @@ class HiveProcessor extends AudioWorkletProcessor {
     }
   }
 
+  /**
+   * Read the waveform of the output signal for the scope.
+   *
+   * The ring holds the last frames of the output. Every point of the
+   * trace takes the peak of a few frames of it, with its sign: the trace
+   * is the shape of the signal and not its noise.
+   */
+  private readScope(): void {
+    const span = SCOPE_POINTS * SCOPE_BUCKET;
+    for (let point = 0; point < SCOPE_POINTS; point += 1) {
+      const start = this.ringPos - span + point * SCOPE_BUCKET;
+      let peak = 0;
+      for (let offset = 0; offset < SCOPE_BUCKET; offset += 1) {
+        const index = (start + offset + SCOPE_RING * 2) % SCOPE_RING;
+        const sample = this.ring[index] ?? 0;
+        if (Math.abs(sample) > Math.abs(peak)) {
+          peak = sample;
+        }
+      }
+      this.scope[point] = peak;
+    }
+  }
+
   private postState(): void {
+    this.readScope();
     this.emit({
       type: 'state',
       state: {
         values: this.values,
         supported: this.supported,
+        scope: this.scope,
         sounding: this.sounding,
         levels: this.levels,
         lamp: this.lamp,
