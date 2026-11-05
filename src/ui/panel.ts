@@ -22,7 +22,6 @@ import { CYMBAL_MODULE, HIHAT_MODULE } from './metallic';
 import { createKnob, type Knob } from './knob';
 import { MODULE_NAMES } from './names';
 import {
-  FX_SPEC,
   MIX_KNOBS,
   STRIP_KNOBS,
   specFor,
@@ -50,8 +49,7 @@ import { printedWord } from './wordmark';
  *
  * The hi-hat module stands at the end of the row, and the effects module
  * after it: the hi-hat is the metallic voice of the engine, and the
- * effects module carries the controls of the kit's effects, which the
- * engine has no bus for.
+ * effects module carries the controls of the engine's shared FX bus.
  */
 
 export interface Panel {
@@ -79,8 +77,8 @@ interface StripWidgets {
   readonly exportButton: HTMLButtonElement;
   /** The control that puts the knobs of the module back to their defaults. */
   readonly resetButton: HTMLButtonElement;
-  /** The effects knob of the module. It is not wired to anything yet. */
-  readonly fxKnob: Knob;
+  /** The cell of the effects knob of the module. */
+  readonly fxCell: HTMLElement;
 }
 
 /**
@@ -302,31 +300,11 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
     buttons.append(triggerButton, pads, resetButton);
 
     /* The effects knob of the module: the share of the module that goes
-     * to the effects send of the kit. It stands below the buttons and it
-     * is not wired to anything yet — the engine has no effects bus. */
-    const fxKnob = createKnob({
-      label: FX_SPEC.label,
-      unit: FX_SPEC.unit,
-      min: 0,
-      max: 1,
-      decimals: FX_SPEC.decimals,
-      taper: FX_SPEC.taper,
-      step: FX_SPEC.step,
-      fineStep: FX_SPEC.fineStep,
-      value: 0,
-      onChange: () => {
-        /* Nothing is behind the knob yet. */
-      },
-    });
-
+     * to the effects send of the kit. It stands below the buttons, and
+     * the knob itself is built with the engine's table, like every other
+     * knob of the panel. */
     const fxCell = document.createElement('div');
     fxCell.className = 'knob-cell strip-fx';
-
-    const fxLabel = document.createElement('span');
-    fxLabel.className = 'knob-label';
-    fxLabel.textContent = FX_SPEC.label;
-
-    fxCell.append(fxKnob.element, fxLabel);
 
     /* The mixer column, the trigger button, the memory positions, the
      * reset and the effects knob stand in one stack. The rule that
@@ -385,20 +363,22 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
       knobs: [],
       exportButton,
       resetButton,
-      fxKnob,
+      fxCell,
     });
   }
 
   /* The effects module stands at the end of the row, where the Cymbal
    * stood before it: it is a plate of its own, with a layout of its own,
-   * and it carries no voice of the engine. */
-  const fx = createFxModule();
+   * and it carries no voice of the engine, only the controls of the
+   * shared FX bus. */
+  const fx = createFxModule((param, value) => {
+    engine.setFxParam(param, toQ16(value));
+  });
   plateRow.append(fx.element);
 
   /* The rail of the case carries a cell for every plate, so that a
    * control on the rail stands under the module it belongs to. The
-   * effects module has nothing to export: the engine holds no settings
-   * for it. */
+   * effects module has nothing to export: the FX bus is not a voice. */
   const fxRailCell = document.createElement('div');
   fxRailCell.className = 'faceplate-rail-cell';
   rail.append(fxRailCell);
@@ -531,6 +511,7 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
     voice: Voice,
     spec: KnobSpec,
     range: { min: number; max: number; default: number },
+    write?: (value: number) => void,
   ): KnobWidget => {
     const meta = specFor(spec, voice);
     const knob = createKnob({
@@ -544,6 +525,10 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
       fineStep: meta.fineStep,
       value: range.default,
       onChange: (value) => {
+        if (write !== undefined) {
+          write(value);
+          return;
+        }
         engine.setParam(voice, spec.param, toQ16(value));
       },
     });
@@ -630,6 +615,33 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
         defaults.set(spec.param, entry.default);
       }
 
+      /* The effects send of the module: the share of the module that goes
+       * to the effects bus of the kit. The engine has the parameter on
+       * every voice, and the knob is built from its own table. */
+      const fxEntry = findInfo(info, voice, paramIndex('fxSend'));
+      if (fxEntry !== undefined && fxEntry.supported) {
+        const widget = createWidget(
+          voice,
+          { kind: 'param', param: 'fxSend' },
+          {
+            min: fromQ16(fxEntry.min),
+            max: fromQ16(fxEntry.max),
+            default: fromQ16(fxEntry.default),
+          },
+          (value) => {
+            engine.setInstrumentFxSend(
+              TRIGGER_INSTRUMENT[voice],
+              toQ16(value),
+            );
+          },
+        );
+        widget.cell.classList.add('strip-fx');
+        strip.fxCell.append(widget.cell);
+        strip.knobs.push(widget);
+        supported.push('fxSend');
+        defaults.set('fxSend', fxEntry.default);
+      }
+
       supportedParams.set(voice, supported);
       voiceDefaults.set(voice, defaults);
     }
@@ -638,6 +650,10 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
   };
   const applyState = (state: EngineState): void => {
     lastState = state;
+
+    /* The knobs of the effects module show the values the engine holds
+     * for the shared FX bus. */
+    fx.update(state.fx);
 
     /* The display of the effects module shows the shape of the output
      * signal, as the engine renders it. */
@@ -683,8 +699,12 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
     }
   };
 
-  const unsubscribeReady = engine.onReady((info) => {
+  const unsubscribeReady = engine.onReady((info, fxInfo) => {
+    fx.build(fxInfo);
     build(info);
+    if (lastState !== null) {
+      applyState(lastState);
+    }
   });
 
   const unsubscribeState = engine.onState((state) => {
@@ -704,7 +724,6 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
         for (const widget of strip.knobs) {
           widget.knob.dispose();
         }
-        strip.fxKnob.dispose();
       }
       fitter.dispose();
       fitHost.remove();

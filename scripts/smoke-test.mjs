@@ -54,12 +54,26 @@ const PARAM = {
   VOLUME: 8,
   PAN: 9,
   SENSITIVITY: 10,
+  FX_SEND: 11,
+};
+const FX = {
+  ROOM_SIZE: 0,
+  DAMPING: 1,
+  WIDTH: 2,
+  WET: 3,
+  GATE_THRESHOLD: 4,
+  GATE_ATTACK: 5,
+  GATE_HOLD: 6,
+  GATE_RELEASE: 7,
+  GATE_RANGE: 8,
 };
 const VOICE_COUNT = 7;
 const INSTRUMENT_COUNT = 8;
-const PARAM_COUNT = 11;
+const PARAM_COUNT = 12;
+const FX_PARAM_COUNT = 9;
 const PANEL_STRIDE = 2;
 const PARAM_INFO_STRIDE = 3;
+const FX_PARAM_INFO_STRIDE = 3;
 const STATUS = {
   OK: 0,
   RANGE: 6,
@@ -142,6 +156,15 @@ function paramInfo(pointer, voice, param) {
   };
 }
 
+function fxParamInfo(pointer, param) {
+  const base = pointer + param * FX_PARAM_INFO_STRIDE * 4;
+  return {
+    min: readI32(base),
+    max: readI32(base + 4),
+    default: readI32(base + 8),
+  };
+}
+
 /* The version of the linked library. */
 const version = engine.hive_version_number();
 check(version > 0, `the library reports its version (${version})`);
@@ -166,6 +189,59 @@ const kickSens = paramInfo(infoPtr, VOICE.KICK, PARAM.SENSITIVITY);
 equal(kickSens.min, 0, 'the Kick sensitivity starts at 0');
 equal(kickSens.max, Q16, 'the Kick sensitivity ends at 1');
 equal(kickSens.default, Q16, 'the Kick sensitivity defaults to 1');
+
+/* The shared FX bus reports its own table, and the glue probes it from the
+ * engine's setters the way it probes the voices. */
+equal(
+  engine.hive_fx_param_count(),
+  FX_PARAM_COUNT,
+  'the FX bus has nine parameters',
+);
+const fxInfoPtr = engine.hive_fx_param_info();
+const roomSize = fxParamInfo(fxInfoPtr, FX.ROOM_SIZE);
+equal(roomSize.min, 0, 'the room size starts at 0');
+equal(roomSize.max, Q16, 'the room size ends at 1');
+equal(roomSize.default, Math.round(Q16 / 2), 'the room size defaults to 0.5');
+const gateAttack = fxParamInfo(fxInfoPtr, FX.GATE_ATTACK);
+equal(gateAttack.min, 0, 'the gate attack starts at 0');
+equal(gateAttack.max, 5 * Q16, 'the gate attack ends at 5 s');
+equal(
+  gateAttack.default,
+  Math.round((5 / 1000) * Q16),
+  'the gate attack defaults to 5 ms',
+);
+
+/* The FX bus snapshot carries the values the engine holds. */
+const fxStatePtr = engine.hive_fx_state(context);
+equal(
+  readI32(fxStatePtr + FX.WET * 4),
+  Math.round(Q16 / 2),
+  'the FX snapshot carries the wet level',
+);
+const fxOut = engine.malloc(4);
+engine.hive_set_fx_param(context, FX.WET, Q16 / 4);
+engine.hive_get_fx_param(context, FX.WET, fxOut);
+equal(readI32(fxOut), Q16 / 4, 'the FX setter stores the value');
+
+/* The send of a module has its own function: it is the FX_SEND of the
+ * voice the instrument belongs to. */
+const sendOut = engine.malloc(4);
+equal(
+  engine.hive_set_instrument_fx_send(context, INSTRUMENT.SNARE, Q16 / 4),
+  STATUS.OK,
+  'the instrument FX send is set',
+);
+engine.hive_get_instrument_fx_send(context, INSTRUMENT.SNARE, sendOut);
+equal(readI32(sendOut), Q16 / 4, 'the instrument FX send is stored');
+const sendPanelPtr = engine.hive_panel_state(context);
+const sendPanelIndex =
+  (VOICE.SNARE * PARAM_COUNT + PARAM.FX_SEND) * PANEL_STRIDE * 4;
+equal(
+  readI32(sendPanelPtr + sendPanelIndex),
+  Q16 / 4,
+  'the panel snapshot carries the instrument FX send',
+);
+engine.hive_reset(context);
 
 for (const voice of Object.values(VOICE)) {
   equal(

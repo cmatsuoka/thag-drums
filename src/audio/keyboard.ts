@@ -3,8 +3,8 @@ import type { Instrument } from './protocol';
 /**
  * The keyboard map of the kit. The keys of the drums are the ones the
  * library's own example uses, so the demo and the C example are played the
- * same way. The metallic voices have keys of their own: the Cymbal and
- * the two Hi-hats.
+ * same way. The two Hi-hats have keys of their own: the Cymbal has no
+ * plate and no key.
  */
 export const KEY_MAP: Readonly<Record<string, Instrument>> = {
   s: 'kick',
@@ -12,19 +12,17 @@ export const KEY_MAP: Readonly<Record<string, Instrument>> = {
   o: 'tom1',
   i: 'tom2',
   u: 'tom3',
-  p: 'cymbal',
   j: 'hihatClosed',
   l: 'hihatOpen',
 };
 
-/** The key of every instrument, for the panel legend. */
-export const INSTRUMENT_KEYS: Readonly<Record<Instrument, string>> = {
+/** The key of every instrument that has one, for the panel legend. */
+export const INSTRUMENT_KEYS: Readonly<Partial<Record<Instrument, string>>> = {
   kick: 'S',
   snare: 'D',
   tom1: 'O',
   tom2: 'I',
   tom3: 'U',
-  cymbal: 'P',
   hihatClosed: 'J',
   hihatOpen: 'L',
 };

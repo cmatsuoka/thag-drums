@@ -2,12 +2,15 @@ import wasmUrl from '../../build/hive.wasm?url';
 import workletUrl from './worklet.ts?worker&url';
 import {
   PARAM_COUNT,
+  fxParamIndex,
   instrumentIndex,
   paramIndex,
   voiceIndex,
   type EngineCommand,
   type EngineEvent,
   type EngineState,
+  type FxParam,
+  type FxParamInfo,
   type Instrument,
   type Param,
   type ParamInfo,
@@ -43,8 +46,11 @@ export class HiveEngine {
   private starting: Promise<void> | null = null;
   private state: EngineState | null = null;
   private info: ParamInfo[] = [];
+  private fxInfo: FxParamInfo[] = [];
   private readonly stateListeners = new Set<(state: EngineState) => void>();
-  private readonly readyListeners = new Set<(info: readonly ParamInfo[]) => void>();
+  private readonly readyListeners = new Set<
+    (info: readonly ParamInfo[], fxInfo: readonly FxParamInfo[]) => void
+  >();
   private readonly errorListeners = new Set<(message: string) => void>();
   private readonly pending: EngineCommand[] = [];
   // A missing worklet is not something a retry can fix, so the failure is
@@ -77,6 +83,11 @@ export class HiveEngine {
     return this.info;
   }
 
+  /** The engine's own FX bus table: the ranges and the defaults. */
+  get fxParamInfo(): FxParamInfo[] {
+    return this.fxInfo;
+  }
+
   /** The rate the engine renders at. */
   get sampleRate(): number {
     return this.context?.sampleRate ?? 0;
@@ -101,10 +112,15 @@ export class HiveEngine {
    * pairs the engine supports. A listener that subscribes after the engine
    * is up is called right away.
    */
-  onReady(listener: (info: readonly ParamInfo[]) => void): () => void {
+  onReady(
+    listener: (
+      info: readonly ParamInfo[],
+      fxInfo: readonly FxParamInfo[],
+    ) => void,
+  ): () => void {
     this.readyListeners.add(listener);
     if (this.info.length > 0) {
-      listener(this.info);
+      listener(this.info, this.fxInfo);
     }
     return () => {
       this.readyListeners.delete(listener);
@@ -155,6 +171,25 @@ export class HiveEngine {
       type: 'param',
       voice: voiceIndex(voice),
       param: paramIndex(param),
+      value,
+    });
+    this.poke();
+  }
+
+  /** Set one parameter of the shared FX bus. The value is in Q16.16. */
+  setFxParam(param: FxParam, value: number): void {
+    this.post({ type: 'fx', param: fxParamIndex(param), value });
+    this.poke();
+  }
+
+  /**
+   * Set the FX send of an instrument. The value is in Q16.16, and the
+   * engine maps the instrument to the voice that owns its send.
+   */
+  setInstrumentFxSend(instrument: Instrument, value: number): void {
+    this.post({
+      type: 'fxSend',
+      instrument: instrumentIndex(instrument),
       value,
     });
     this.poke();
@@ -357,8 +392,9 @@ export class HiveEngine {
     switch (event.type) {
       case 'ready': {
         this.info = event.info;
+        this.fxInfo = event.fxInfo;
         for (const listener of this.readyListeners) {
-          listener(this.info);
+          listener(this.info, this.fxInfo);
         }
         break;
       }

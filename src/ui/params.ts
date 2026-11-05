@@ -124,6 +124,14 @@ export const PARAM_SPECS: Readonly<Record<Param, ParamSpec>> = {
     step: 0.02,
     fineStep: 0.002,
   },
+  fxSend: {
+    label: 'fx',
+    unit: '',
+    taper: 'linear',
+    decimals: 2,
+    step: 0.02,
+    fineStep: 0.002,
+  },
 };
 
 /**
@@ -214,22 +222,6 @@ export const MIX_KNOBS: readonly KnobSpec[] = [
   { kind: 'param', param: 'sensitivity' },
 ];
 
-/**
- * The effects knob of a module: the share of the module that goes to the
- * effects send of the kit.
- *
- * The engine has no effects bus, so this knob is a control of the host
- * and not of the engine: it stands on the panel, it turns, and nothing is
- * behind it yet.
- */
-export const FX_SPEC: ParamSpec = {
-  label: 'fx',
-  unit: '',
-  taper: 'linear',
-  decimals: 2,
-  step: 0.02,
-  fineStep: 0.002,
-};
 
 /**
  * The label and the scale of a knob.

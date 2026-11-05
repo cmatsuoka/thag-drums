@@ -24,6 +24,11 @@ declare module '*hive.mjs' {
       out: number,
     ): number;
     _hive_param_supported(voice: number, param: number): number;
+    _hive_fx_param_count(): number;
+    _hive_set_fx_param(ctx: number, param: number, value: number): number;
+    _hive_get_fx_param(ctx: number, param: number, out: number): number;
+    _hive_fx_param_info(): number;
+    _hive_fx_state(ctx: number): number;
     _hive_set_instrument_volume(
       ctx: number,
       instrument: number,
@@ -40,6 +45,16 @@ declare module '*hive.mjs' {
       value: number,
     ): number;
     _hive_get_instrument_pan(
+      ctx: number,
+      instrument: number,
+      out: number,
+    ): number;
+    _hive_set_instrument_fx_send(
+      ctx: number,
+      instrument: number,
+      value: number,
+    ): number;
+    _hive_get_instrument_fx_send(
       ctx: number,
       instrument: number,
       out: number,

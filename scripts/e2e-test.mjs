@@ -39,6 +39,7 @@ const PARAMS = [
   'volume',
   'pan',
   'sensitivity',
+  'fxSend',
 ];
 
 /**
@@ -160,6 +161,19 @@ async function readEngineState(page) {
   });
 }
 
+/**
+ * What the engine holds for the shared FX bus, read out of the engine's
+ * own snapshot.
+ */
+async function readEngineFxState(page) {
+  return page.evaluate(() => {
+    const state = window.hive?.engineState;
+    return state === null || state === undefined || !state.fx
+      ? []
+      : Array.from(state.fx);
+  });
+}
+
 /** The value the engine holds for a knob of a strip. */
 function stateValue(state, voice, param) {
   return state.values[engineIndex(voice, param)];
@@ -221,29 +235,15 @@ function engineIndex(voice, param) {
 /** Wait until the engine holds a value for a voice and a parameter. */
 async function waitForEngineValue(page, voice, param, expected) {
   await page.waitForFunction(
-    ({ voice, param, expected }) => {
+    ({ voice, param, expected, voices, params }) => {
       const state = window.hive?.engineState;
       if (state === null || state === undefined) {
         return false;
       }
-      const voices = ['kick', 'snare', 'tom1', 'tom2', 'tom3'];
-      const params = [
-        'noisePitch',
-        'tonePitch',
-        'bend',
-        'decay',
-        'noiseTone',
-        'clickTone',
-        'sweep',
-        'bellCymbal',
-        'volume',
-        'pan',
-        'sensitivity',
-      ];
       const index = voices.indexOf(voice) * params.length + params.indexOf(param);
       return state.values[index] === expected;
     },
-    { voice, param, expected },
+    { voice, param, expected, voices: VOICES, params: PARAMS },
     { timeout: TIMEOUT },
   );
 }
@@ -251,29 +251,15 @@ async function waitForEngineValue(page, voice, param, expected) {
 /** Wait until the engine holds another value for a voice and a parameter. */
 async function waitForEngineValueChange(page, voice, param, previous) {
   await page.waitForFunction(
-    ({ voice, param, previous }) => {
+    ({ voice, param, previous, voices, params }) => {
       const state = window.hive?.engineState;
       if (state === null || state === undefined) {
         return false;
       }
-      const voices = ['kick', 'snare', 'tom1', 'tom2', 'tom3'];
-      const params = [
-        'noisePitch',
-        'tonePitch',
-        'bend',
-        'decay',
-        'noiseTone',
-        'clickTone',
-        'sweep',
-        'bellCymbal',
-        'volume',
-        'pan',
-        'sensitivity',
-      ];
       const index = voices.indexOf(voice) * params.length + params.indexOf(param);
       return state.values[index] !== previous;
     },
-    { voice, param, previous },
+    { voice, param, previous, voices: VOICES, params: PARAMS },
     { timeout: TIMEOUT },
   );
 }
@@ -309,9 +295,18 @@ try {
     undefined,
     { timeout: TIMEOUT },
   );
+  /* The version the engine reports is the version of the library it was
+   * built with: the panel may not make one up. */
   const status = await page.locator('#engine-status').textContent();
+  const reported = await page.evaluate(() => {
+    const version = window.hive?.engineState?.version ?? 0;
+    const major = (version >> 16) & 0xff;
+    const minor = (version >> 8) & 0xff;
+    const patch = version & 0xff;
+    return `${major}.${minor}.${patch}`;
+  });
   check(
-    (status ?? '').includes('libhive 0.4.0'),
+    (status ?? '').includes(`libhive ${reported}`),
     `the engine reports its version (${(status ?? '').trim()})`,
   );
 
@@ -501,6 +496,11 @@ try {
       ranges += 1;
     }
     const [voice, param] = key.split('.');
+    if (!VOICES.includes(voice) || !PARAMS.includes(param)) {
+      // A knob of the host is not wired to the engine: it holds no value
+      // of its own.
+      continue;
+    }
     if (knob.stored === stateValue(engineState, voice, param)) {
       stored += 1;
     }
@@ -535,16 +535,13 @@ try {
   await page.waitForTimeout(200);
   check((await readPeak(page)) > 0, 'the other voices play from the keyboard');
 
-  /* The metallic voices play from the keyboard as well: the cymbal on P,
-   * the closed hi-hat on J and the open one on L. */
-  for (const key of ['p', 'j', 'l']) {
+  /* The hi-hats play from the keyboard: the closed one on J and the open
+   * one on L. The cymbal has no plate and no key. */
+  for (const key of ['j', 'l']) {
     await page.keyboard.press(key);
   }
   await page.waitForTimeout(200);
-  check(
-    (await readPeak(page)) > 0,
-    'the cymbal and the hi-hats play from the keyboard',
-  );
+  check((await readPeak(page)) > 0, 'the hi-hats play from the keyboard');
 
   /* The hi-hat has two instruments and one lamp: the closed one and the
    * open one light the same lamp. */
@@ -716,12 +713,21 @@ try {
    * alone. The hi-hat knobs turn but send nothing anywhere. */
   const before = await readEngineState(page);
   /* The knobs that reach the engine are the ones of a voice: the effects
-   * send of a module and the knobs of the effects module belong to the
-   * host, and they are not wired to anything yet. */
+   * send of a module and the knobs of the effects module. */
   const knobs = page.locator('.strip[data-voice] .knob[data-param]');
   const knobCount = await knobs.count();
   for (let index = 0; index < knobCount; index += 1) {
-    await knobs.nth(index).press('ArrowDown');
+    const knob = knobs.nth(index);
+    /* A knob that stands at the top of its travel does not go up, and a
+     * knob that stands at the bottom does not go down: the step is taken
+     * in the direction the knob can take it. */
+    const before = await knob.getAttribute('aria-valuenow');
+    await knob.press('ArrowUp');
+    await page.waitForTimeout(20);
+    const after = await knob.getAttribute('aria-valuenow');
+    if (after === before) {
+      await knob.press('ArrowDown');
+    }
   }
   await page.waitForTimeout(300);
   const after = await readEngineState(page);
@@ -735,6 +741,33 @@ try {
     moved,
     knobCount,
     'every knob of the engine moves with the arrow keys',
+  );
+
+  /* The knobs of the effects module reach the engine too: they are the
+   * shared FX bus, and the engine keeps their values. */
+  const fxBefore = await readEngineFxState(page);
+  const fxKnobs = page.locator('.strip-fx-module .knob[data-control]');
+  const fxKnobCount = await fxKnobs.count();
+  let fxMoved = 0;
+  for (let index = 0; index < fxKnobCount; index += 1) {
+    const knob = fxKnobs.nth(index);
+    const before = await knob.getAttribute('aria-valuenow');
+    await knob.press('ArrowUp');
+    await page.waitForTimeout(20);
+    const after = await knob.getAttribute('aria-valuenow');
+    if (after === before) {
+      await knob.press('ArrowDown');
+    }
+    await page.waitForTimeout(60);
+    const state = await readEngineFxState(page);
+    if (state.some((value, i) => value !== fxBefore[i])) {
+      fxMoved += 1;
+    }
+  }
+  equal(
+    fxMoved,
+    fxKnobCount,
+    'every knob of the effects module reaches the engine',
   );
 
   /* The panel follows the engine. */

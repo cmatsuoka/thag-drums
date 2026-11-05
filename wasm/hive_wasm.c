@@ -28,6 +28,14 @@ static int32_t panel_out[H5_VOICE_COUNT * H5_PARAM_COUNT * PANEL_STRIDE];
 #define PARAM_INFO_STRIDE 3
 static int32_t param_info_out[H5_VOICE_COUNT * H5_PARAM_COUNT * PARAM_INFO_STRIDE];
 
+/* The FX bus snapshot: the value the engine holds for every bus parameter. */
+static int32_t fx_state_out[H5_FX_PARAM_COUNT];
+
+/* The FX bus table: the minimum, the maximum and the default of every bus
+ * parameter. */
+#define FX_PARAM_INFO_STRIDE 3
+static int32_t fx_param_info_out[H5_FX_PARAM_COUNT * FX_PARAM_INFO_STRIDE];
+
 /* The level of every instrument, in Q16.16: the peak of the instrument's
  * own voice in the last rendered block, after its own volume and before
  * the pan and the mix. */
@@ -81,6 +89,21 @@ WASM_EXPORT int32_t hive_param_supported(int32_t voice, int32_t param)
     return h5_param_supported((h5_voice)voice, (h5_param)param) ? 1 : 0;
 }
 
+WASM_EXPORT int32_t hive_fx_param_count(void)
+{
+    return (int32_t)H5_FX_PARAM_COUNT;
+}
+
+WASM_EXPORT int32_t hive_set_fx_param(void *ctx, int32_t param, int32_t value)
+{
+    return (int32_t)h5_set_fx_param(ctx, (h5_fx_param)param, value);
+}
+
+WASM_EXPORT int32_t hive_get_fx_param(void *ctx, int32_t param, int32_t *out)
+{
+    return (int32_t)h5_get_fx_param(ctx, (h5_fx_param)param, out);
+}
+
 WASM_EXPORT int32_t hive_set_instrument_volume(void *ctx, int32_t instrument,
     int32_t volume_q16)
 {
@@ -107,6 +130,20 @@ WASM_EXPORT int32_t hive_get_instrument_pan(void *ctx, int32_t instrument,
 {
     return (int32_t)h5_get_instrument_pan(ctx, (h5_instrument)instrument,
         out);
+}
+
+WASM_EXPORT int32_t hive_set_instrument_fx_send(void *ctx,
+    int32_t instrument, int32_t send_q16)
+{
+    return (int32_t)h5_set_instrument_fx_send(ctx,
+        (h5_instrument)instrument, send_q16);
+}
+
+WASM_EXPORT int32_t hive_get_instrument_fx_send(void *ctx,
+    int32_t instrument, int32_t *out)
+{
+    return (int32_t)h5_get_instrument_fx_send(ctx,
+        (h5_instrument)instrument, out);
 }
 
 WASM_EXPORT int32_t hive_trigger(void *ctx, int32_t instrument)
@@ -184,6 +221,80 @@ WASM_EXPORT int32_t *hive_panel_state(void *ctx)
         }
     }
     return panel_out;
+}
+
+/*
+ * The FX bus snapshot: the values the engine holds for the shared reverb
+ * and gate, read back from the engine itself.
+ */
+WASM_EXPORT int32_t *hive_fx_state(void *ctx)
+{
+    int param;
+
+    for (param = 0; param < (int)H5_FX_PARAM_COUNT; param++) {
+        int32_t value = 0;
+
+        if (h5_get_fx_param(ctx, (h5_fx_param)param, &value) != H5_OK) {
+            value = 0;
+        }
+        fx_state_out[param] = value;
+    }
+    return fx_state_out;
+}
+
+/*
+ * The FX bus table: the minimum, the maximum and the default of every bus
+ * parameter, probed from a scratch context through the public API alone.
+ */
+WASM_EXPORT int32_t *hive_fx_param_info(void)
+{
+    static int probed = 0;
+    h5_context probe;
+    int param;
+
+    if (probed) {
+        return fx_param_info_out;
+    }
+    probed = 1;
+
+    probe = h5_create_context(0);
+    if (probe == 0) {
+        return fx_param_info_out;
+    }
+
+    /* The defaults come from the fresh context. */
+    for (param = 0; param < (int)H5_FX_PARAM_COUNT; param++) {
+        int32_t *slot = &fx_param_info_out[param * FX_PARAM_INFO_STRIDE];
+        int32_t value = 0;
+
+        if (h5_get_fx_param(probe, (h5_fx_param)param, &value) != H5_OK) {
+            value = 0;
+        }
+        slot[0] = 0;
+        slot[1] = 0;
+        slot[2] = value;
+    }
+
+    /* The bounds come from the clamping of the setter. */
+    for (param = 0; param < (int)H5_FX_PARAM_COUNT; param++) {
+        int32_t *slot = &fx_param_info_out[param * FX_PARAM_INFO_STRIDE];
+        int32_t value = 0;
+
+        (void)h5_set_fx_param(probe, (h5_fx_param)param, INT32_MIN);
+        if (h5_get_fx_param(probe, (h5_fx_param)param, &value) != H5_OK) {
+            value = 0;
+        }
+        slot[0] = value;
+
+        (void)h5_set_fx_param(probe, (h5_fx_param)param, INT32_MAX);
+        if (h5_get_fx_param(probe, (h5_fx_param)param, &value) != H5_OK) {
+            value = 0;
+        }
+        slot[1] = value;
+    }
+
+    h5_destroy_context(probe);
+    return fx_param_info_out;
 }
 
 /*

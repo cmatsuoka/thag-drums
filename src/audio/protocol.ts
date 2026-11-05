@@ -27,10 +27,12 @@ export type Voice = (typeof VOICES)[number];
 export const VOICE_COUNT = VOICES.length;
 
 /**
- * The eleven parameters of a voice, in the library's own order. The first
+ * The twelve parameters of a voice, in the library's own order. The first
  * eight are the sound parameters a tone holds; the last three are the
- * mixer values of the channel. The Sweep and the Bell/Cymbal belong to
- * the metallic voices; the Noise and the Click/Drum to the drum voices.
+ * mixer values of the channel, and the last one is the share of the voice
+ * that goes to the effects bus of the kit. The Sweep and the Bell/Cymbal
+ * belong to the metallic voices; the Noise and the Click/Drum to the drum
+ * voices.
  */
 export const PARAMS = [
   'noisePitch',
@@ -44,6 +46,7 @@ export const PARAMS = [
   'volume',
   'pan',
   'sensitivity',
+  'fxSend',
 ] as const;
 export type Param = (typeof PARAMS)[number];
 export const PARAM_COUNT = PARAMS.length;
@@ -64,6 +67,43 @@ export const SOUND_PARAMS = [
 ] as const;
 export type SoundParam = (typeof SOUND_PARAMS)[number];
 export const SOUND_PARAM_COUNT = SOUND_PARAMS.length;
+
+/**
+ * The nine parameters of the shared FX bus, in the library's own order:
+ * the four of the reverb and the five of the gate.
+ */
+export const FX_PARAMS = [
+  'roomSize',
+  'damping',
+  'width',
+  'wet',
+  'gateThreshold',
+  'gateAttack',
+  'gateHold',
+  'gateRelease',
+  'gateRange',
+] as const;
+export type FxParam = (typeof FX_PARAMS)[number];
+export const FX_PARAM_COUNT = FX_PARAMS.length;
+
+export function fxParamIndex(param: FxParam): number {
+  return FX_PARAMS.indexOf(param);
+}
+
+/**
+ * The FX bus table of the engine: the range and the default of every bus
+ * parameter, as the engine itself reports them.
+ */
+export interface FxParamInfo {
+  /** The place of the parameter in the library's own order. */
+  readonly param: number;
+  /** The lowest value the engine accepts, in Q16.16. */
+  readonly min: number;
+  /** The highest value the engine accepts, in Q16.16. */
+  readonly max: number;
+  /** The factory value, in Q16.16. */
+  readonly default: number;
+}
 
 /**
  * The eight instruments a trigger can play, in the library's own order.
@@ -146,6 +186,8 @@ export interface EngineState {
   readonly values: Int32Array;
   /** 1 where the engine supports the voice and the parameter. */
   readonly supported: Uint8Array;
+  /** The value of every parameter of the shared FX bus, in Q16.16. */
+  readonly fx: Int32Array;
   /**
    * The waveform of the output signal, as the scope of the effects module
    * draws it: one signed peak per point, from the left to the right.
@@ -184,6 +226,13 @@ export interface EngineState {
 export type EngineCommand =
   /** Set one parameter of one voice. The value is in Q16.16. */
   | { type: 'param'; voice: number; param: number; value: number }
+  /** Set one parameter of the shared FX bus. The value is in Q16.16. */
+  | { type: 'fx'; param: number; value: number }
+  /**
+   * Set the FX send of one instrument. The value is in Q16.16, and the
+   * engine maps the instrument to the voice that owns its send.
+   */
+  | { type: 'fxSend'; instrument: number; value: number }
   /**
    * Write a whole tone: the six sound parameters of a voice, in the
    * library's order.
@@ -198,6 +247,6 @@ export type EngineCommand =
 
 /** The events the worklet sends back. */
 export type EngineEvent =
-  | { type: 'ready'; info: ParamInfo[] }
+  | { type: 'ready'; info: ParamInfo[]; fxInfo: FxParamInfo[] }
   | { type: 'state'; state: EngineState }
   | { type: 'error'; message: string };

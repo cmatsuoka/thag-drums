@@ -4,6 +4,7 @@ import createHiveModule, {
   type HiveModuleOptions,
 } from '../../build/hive.mjs';
 import {
+  FX_PARAM_COUNT,
   INSTRUMENT_COUNT,
   PARAM_COUNT,
   Q16_ONE,
@@ -12,6 +13,7 @@ import {
   VOICE_COUNT,
   type EngineCommand,
   type EngineEvent,
+  type FxParamInfo,
   type ParamInfo,
 } from './protocol';
 
@@ -81,6 +83,9 @@ class HiveProcessor extends AudioWorkletProcessor {
    * never allocates a new one per message. */
   private readonly values = new Int32Array(VOICE_COUNT * PARAM_COUNT);
   private readonly supported = new Uint8Array(VOICE_COUNT * PARAM_COUNT);
+
+  /* The values of the shared FX bus, as the engine holds them. */
+  private readonly fx = new Int32Array(FX_PARAM_COUNT);
 
   /* The trigger lamps. The engine knows the level of every instrument
    * before it sums the voices into the mix, so a lamp follows the level
@@ -279,7 +284,11 @@ class HiveProcessor extends AudioWorkletProcessor {
     this.heapBuffer = buffer;
     this.version = module._hive_version_number();
 
-    this.emit({ type: 'ready', info: this.readParamInfo() });
+    this.emit({
+      type: 'ready',
+      info: this.readParamInfo(),
+      fxInfo: this.readFxParamInfo(),
+    });
     this.readState();
     this.postState();
 
@@ -298,6 +307,15 @@ class HiveProcessor extends AudioWorkletProcessor {
     switch (command.type) {
       case 'param': {
         module._hive_set_param(this.context, command.voice, command.param, command.value);
+        break;
+      }
+      case 'fx': {
+        module._hive_set_fx_param(this.context, command.param, command.value);
+        break;
+      }
+      case 'fxSend': {
+        module._hive_set_instrument_fx_send(this.context, command.instrument,
+          command.value);
         break;
       }
       case 'tone': {
@@ -416,6 +434,35 @@ class HiveProcessor extends AudioWorkletProcessor {
     return info;
   }
 
+  /**
+   * The FX bus table of the engine: the range and the default of every
+   * shared bus parameter, probed from the engine's own setters.
+   */
+  private readFxParamInfo(): FxParamInfo[] {
+    const module = this.module;
+    if (module === null) {
+      return [];
+    }
+
+    const pointer = module._hive_fx_param_info();
+    const base = pointer >> 2;
+    const heap = module.HEAP32;
+    const count = module._hive_fx_param_count();
+    const info: FxParamInfo[] = [];
+
+    for (let param = 0; param < count; param += 1) {
+      const index = param * 3;
+      info.push({
+        param,
+        min: heap[base + index] ?? 0,
+        max: heap[base + index + 1] ?? 0,
+        default: heap[base + index + 2] ?? 0,
+      });
+    }
+
+    return info;
+  }
+
   private readState(): void {
     const module = this.module;
     if (module === null) {
@@ -436,6 +483,12 @@ class HiveProcessor extends AudioWorkletProcessor {
     for (let index = 0; index < VOICE_COUNT * PARAM_COUNT; index += 1) {
       this.values[index] = heap[base + index * 2] ?? 0;
       this.supported[index] = (heap[base + index * 2 + 1] ?? 0) !== 0 ? 1 : 0;
+    }
+
+    const fxPointer = module._hive_fx_state(this.context);
+    const fxBase = fxPointer >> 2;
+    for (let param = 0; param < FX_PARAM_COUNT; param += 1) {
+      this.fx[param] = heap[fxBase + param] ?? 0;
     }
 
     this.active = module._hive_is_active(this.context) !== 0;
@@ -477,6 +530,7 @@ class HiveProcessor extends AudioWorkletProcessor {
       state: {
         values: this.values,
         supported: this.supported,
+        fx: this.fx,
         scope: this.scope,
         sounding: this.sounding,
         levels: this.levels,

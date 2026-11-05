@@ -281,7 +281,7 @@ body {
   color: var(--plate-ink);
 }
 
-.strip-name > svg {
+.strip-name svg {
   display: block;
   width: auto;
   height: 1em;
@@ -289,6 +289,32 @@ body {
   /* The print is engraved in the plate: a hairline of light under the
    * letters, the way the old text-shadow drew it. */
   filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.6));
+}
+
+/* The name of the effects module and the speed stripe that stands beside
+ * it: they are one emblem, and they stand on the same line. The stripe
+ * is a print on the plate and nothing more. */
+.fx-nameplate {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  /* The em of the emblem is the em of the lettering: the stripe is cut
+   * in the same space as the word, and it scales with it. */
+  font-size: 24px;
+}
+
+/* The speed stripe is a silk screen print on the plate: it keeps its own
+ * colour, and it carries no outline and no raised edge. */
+.fx-stripe-mark {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.fx-stripe {
+  height: 1em;
+  width: auto;
+  fill: none;
 }
 
 .strip-lamps {
@@ -744,8 +770,7 @@ body {
 }
 
 /* The effects knob stands at the foot of the mixer column, on the line of
- * the lowest sound knob of the module. It is not wired to anything yet,
- * so it is printed quietly. */
+ * the lowest sound knob of the module. */
 .strip-fx {
   margin-top: auto;
 }
@@ -754,7 +779,6 @@ body {
   font-size: 13px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: rgba(20, 23, 26, 0.6);
 }
 
 /* The effects module: a plate of its own, with a layout of its own. It
@@ -773,7 +797,7 @@ body {
   width: 100%;
   display: flex;
   justify-content: center;
-  margin-top: 2px;
+  margin-top: 10px;
 }
 
 .fx-scope {
@@ -842,9 +866,9 @@ body {
 }
 
 .strip-fx-module .knob-label {
-  font-size: 12px;
+  font-size: 13px;
   letter-spacing: 0.04em;
-  line-height: 16px;
+  line-height: 17px;
 }
 
 .knob:focus-visible {
