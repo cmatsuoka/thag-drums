@@ -45,7 +45,7 @@ export const MEMORY_POSITIONS = 4;
  * the shape of the data, is a change of what the store holds, and the
  * tones of an earlier version would shadow them.
  */
-const STORAGE_KEY = 'thagomizer.memory.v5';
+const STORAGE_KEY = 'thagomizer.memory.v6';
 
 /** The keys of the memories of the earlier versions, if they are still
  * there. */
@@ -57,7 +57,53 @@ const OLD_STORAGE_KEYS = [
 ];
 
 /** The shape of the stored data. A change of shape changes the key. */
-const STORAGE_VERSION = 5;
+const STORAGE_VERSION = 6;
+
+/**
+ * The tones of the Kick that are not the factory value of the engine.
+ *
+ * Every position of the Kick is a tone of its own: the Noise, the Tone,
+ * the Bend, the Decay, the Noise/Tone and the Click are the ones below.
+ * The Noise/Tone is the balance between the noise and the tone of the
+ * drum, and the Click the balance between the click and the body of it.
+ * The other modules keep the factory values of the engine.
+ */
+const KICK_TONES: Readonly<
+  Record<number, ReadonlyArray<readonly [SoundParam, number]>>
+> = {
+  1: [
+    ['noisePitch', 9000],
+    ['tonePitch', 40],
+    ['bend', 40],
+    ['decay', 0.3],
+    ['noiseTone', 0.95],
+    ['clickTone', 0.5],
+  ],
+  2: [
+    ['noisePitch', 3810],
+    ['tonePitch', 35],
+    ['bend', 39.7],
+    ['decay', 0.3],
+    ['noiseTone', 0.64],
+    ['clickTone', 0.69],
+  ],
+  3: [
+    ['noisePitch', 1448],
+    ['tonePitch', 45],
+    ['bend', 19],
+    ['decay', 0.27],
+    ['noiseTone', 0.04],
+    ['clickTone', 0.17],
+  ],
+  4: [
+    ['noisePitch', 3763],
+    ['tonePitch', 39],
+    ['bend', 56.3],
+    ['decay', 0.52],
+    ['noiseTone', 1.0],
+    ['clickTone', 0.15],
+  ],
+};
 
 /**
  * The tones of the Snare that are not the factory value of the engine.
@@ -215,7 +261,7 @@ export function createMemoryStore(
     }
     values.set(table.values);
 
-    const tone = voice === 'snare' ? SNARE_TONES[position] : undefined;
+    const tone = voice === 'snare' ? SNARE_TONES[position] : voice === 'kick' ? KICK_TONES[position] : undefined;
     if (tone !== undefined) {
       for (const [param, value] of tone) {
         const slot = SOUND_PARAMS.indexOf(param);
