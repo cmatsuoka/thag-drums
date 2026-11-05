@@ -9,8 +9,9 @@ import {
   PARAM_COUNT,
   Q16_ONE,
   SCOPE_POINTS,
-  SOUND_PARAM_COUNT,
+  SOUND_PARAMS,
   VOICE_COUNT,
+  paramIndex,
   type EngineCommand,
   type EngineEvent,
   type FxParamInfo,
@@ -320,12 +321,18 @@ class HiveProcessor extends AudioWorkletProcessor {
       }
       case 'tone': {
         const values = command.values;
-        for (let index = 0; index < SOUND_PARAM_COUNT; index += 1) {
-          const value = values[index];
-          if (value === undefined) {
+        for (let slot = 0; slot < SOUND_PARAMS.length; slot += 1) {
+          const value = values[slot];
+          const param = SOUND_PARAMS[slot];
+          if (value === undefined || param === undefined) {
             continue;
           }
-          module._hive_set_param(this.context, command.voice, index, value);
+          module._hive_set_param(
+            this.context,
+            command.voice,
+            paramIndex(param),
+            value,
+          );
         }
         break;
       }

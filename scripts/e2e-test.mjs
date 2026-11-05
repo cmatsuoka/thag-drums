@@ -40,6 +40,8 @@ const PARAMS = [
   'pan',
   'sensitivity',
   'fxSend',
+  'noiseBody',
+  'drive',
 ];
 
 /**
@@ -391,8 +393,9 @@ try {
 
   /* The metallic module: the hi-hat, wired to the engine like the drums.
    * It carries the controls the metallic voices have and nothing else:
-   * its own Sweep and Bell/Cymbal, and no Noise or Click/Drum of the
-   * drums. */
+   * the Pitch and the Color of its noise filter, the Tone Pitch, the
+   * Decay, the Noise/Tone and the Bell, and no Bend or Sweep, which are
+   * fixed at zero on the Hi-hat. */
   for (const place of ['hihat']) {
     equal(
       await page.locator(`.strip-${place}`).count(),
@@ -404,23 +407,20 @@ try {
       6,
       `the ${place} module has the six sound knobs`,
     );
-    for (const param of ['sweep', 'tonePitch', 'bend', 'decay', 'noiseTone', 'bellCymbal']) {
+    for (const param of ['noisePitch', 'tonePitch', 'noiseBody', 'decay', 'noiseTone', 'bellCymbal']) {
       equal(
         await page.locator(`.strip-${place} .knob[data-param="${param}"]`).count(),
         1,
         `the ${place} module has a ${param} knob`,
       );
     }
-    equal(
-      await page.locator(`.strip-${place} .knob[data-param="noisePitch"]`).count(),
-      0,
-      `the ${place} module has no noise knob`,
-    );
-    equal(
-      await page.locator(`.strip-${place} .knob[data-param="clickTone"]`).count(),
-      0,
-      `the ${place} module has no click/drum knob`,
-    );
+    for (const param of ['sweep', 'bend', 'clickTone']) {
+      equal(
+        await page.locator(`.strip-${place} .knob[data-param="${param}"]`).count(),
+        0,
+        `the ${place} module has no ${param} knob`,
+      );
+    }
     equal(
       await page.locator(`.strip-${place} .strip-mix .knob`).count(),
       3,

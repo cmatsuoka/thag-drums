@@ -55,6 +55,8 @@ const PARAM = {
   PAN: 9,
   SENSITIVITY: 10,
   FX_SEND: 11,
+  NOISE_BODY: 12,
+  DRIVE: 13,
 };
 const FX = {
   ROOM_SIZE: 0,
@@ -69,7 +71,7 @@ const FX = {
 };
 const VOICE_COUNT = 7;
 const INSTRUMENT_COUNT = 8;
-const PARAM_COUNT = 12;
+const PARAM_COUNT = 14;
 const FX_PARAM_COUNT = 9;
 const PANEL_STRIDE = 2;
 const PARAM_INFO_STRIDE = 3;
@@ -251,19 +253,18 @@ for (const voice of Object.values(VOICE)) {
   );
 }
 
-/* The metallic voices are compiled in: they carry their own faceplate,
- * with a Sweep and a Bell/Cymbal of their own and no Noise or Click/Drum
- * of the drums. */
+/* The metallic voices are compiled in: they carry their own faceplate, a
+ * Bell/Cymbal of their own and no Click/Drum or Drive of the drums. */
 for (const voice of [VOICE.CYMBAL, VOICE.HIHAT]) {
-  equal(
-    engine.hive_param_supported(voice, PARAM.NOISE_PITCH),
-    0,
-    `the voice ${voice} has no noise pitch`,
-  );
   equal(
     engine.hive_param_supported(voice, PARAM.CLICK_TONE),
     0,
     `the voice ${voice} has no click/drum`,
+  );
+  equal(
+    engine.hive_param_supported(voice, PARAM.DRIVE),
+    0,
+    `the voice ${voice} has no drive`,
   );
   equal(
     engine.hive_param_supported(voice, PARAM.TONE_PITCH),
@@ -271,19 +272,36 @@ for (const voice of [VOICE.CYMBAL, VOICE.HIHAT]) {
     `the voice ${voice} supports the tone pitch`,
   );
   equal(
-    engine.hive_param_supported(voice, PARAM.BEND),
-    1,
-    `the voice ${voice} supports the bend`,
-  );
-  equal(
-    engine.hive_param_supported(voice, PARAM.SWEEP),
-    1,
-    `the voice ${voice} supports the sweep`,
-  );
-  equal(
     engine.hive_param_supported(voice, PARAM.BELL_CYMBAL),
     1,
     `the voice ${voice} supports the bell/cymbal`,
+  );
+}
+
+/* The Cymbal keeps the Sweep and the Bend; the Hi-hat has the two edges of
+ * its noise filter instead, and its Bend and Sweep are fixed at zero. */
+for (const param of [PARAM.SWEEP, PARAM.BEND]) {
+  equal(
+    engine.hive_param_supported(VOICE.CYMBAL, param),
+    1,
+    `the Cymbal supports the ${param}`,
+  );
+  equal(
+    engine.hive_param_supported(VOICE.HIHAT, param),
+    0,
+    `the Hi-hat has no ${param}`,
+  );
+}
+for (const param of [PARAM.NOISE_PITCH, PARAM.NOISE_BODY]) {
+  equal(
+    engine.hive_param_supported(VOICE.HIHAT, param),
+    1,
+    `the Hi-hat supports the ${param}`,
+  );
+  equal(
+    engine.hive_param_supported(VOICE.CYMBAL, param),
+    0,
+    `the Cymbal has no ${param}`,
   );
 }
 
@@ -304,6 +322,19 @@ equal(
   Math.round((7 / 10) * Q16),
   'the Cymbal sweep defaults to 0.7',
 );
+
+/* The two edges of the Hi-hat noise filter are named frequencies: the
+ * Noise is the cutoff of the low-pass, the Noise Body the corner of the
+ * high-pass. */
+const hihatPitch = paramInfo(infoPtr, VOICE.HIHAT, PARAM.NOISE_PITCH);
+equal(hihatPitch.min, 2000 * Q16, 'the Hi-hat pitch starts at 2000 Hz');
+equal(hihatPitch.max, 14000 * Q16, 'the Hi-hat pitch ends at 14000 Hz');
+equal(hihatPitch.default, 12000 * Q16, 'the Hi-hat pitch defaults to 12000 Hz');
+
+const hihatColor = paramInfo(infoPtr, VOICE.HIHAT, PARAM.NOISE_BODY);
+equal(hihatColor.min, 500 * Q16, 'the Hi-hat color starts at 500 Hz');
+equal(hihatColor.max, 5000 * Q16, 'the Hi-hat color ends at 5000 Hz');
+equal(hihatColor.default, 3000 * Q16, 'the Hi-hat color defaults to 3000 Hz');
 
 /* An out-of-range value is clamped, stored clamped and reported. The value
  * has to stay inside the int32 range of the API. */

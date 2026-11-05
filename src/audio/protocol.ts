@@ -27,12 +27,12 @@ export type Voice = (typeof VOICES)[number];
 export const VOICE_COUNT = VOICES.length;
 
 /**
- * The twelve parameters of a voice, in the library's own order. The first
- * eight are the sound parameters a tone holds; the last three are the
- * mixer values of the channel, and the last one is the share of the voice
- * that goes to the effects bus of the kit. The Sweep and the Bell/Cymbal
- * belong to the metallic voices; the Noise and the Click/Drum to the drum
- * voices.
+ * The fourteen parameters of a voice, in the library's own order. The
+ * sound parameters a tone holds; the mixer values of the channel; the
+ * share of the voice that goes to the effects bus of the kit; and the
+ * Noise Body and the Drive. The Sweep, the Bell/Cymbal and the Noise Body
+ * belong to the metallic voices; the Noise, the Click/Drum and the Drive
+ * to the drum voices.
  */
 export const PARAMS = [
   'noisePitch',
@@ -47,13 +47,16 @@ export const PARAMS = [
   'pan',
   'sensitivity',
   'fxSend',
+  'noiseBody',
+  'drive',
 ] as const;
 export type Param = (typeof PARAMS)[number];
 export const PARAM_COUNT = PARAMS.length;
 
 /**
  * The sound parameters: the ones a tone holds, in the library's order. The
- * mixer values (volume, pan, sensitivity) are not part of a tone.
+ * mixer values (volume, pan, sensitivity) and the effects send are not
+ * part of a tone.
  */
 export const SOUND_PARAMS = [
   'noisePitch',
@@ -64,6 +67,8 @@ export const SOUND_PARAMS = [
   'clickTone',
   'sweep',
   'bellCymbal',
+  'noiseBody',
+  'drive',
 ] as const;
 export type SoundParam = (typeof SOUND_PARAMS)[number];
 export const SOUND_PARAM_COUNT = SOUND_PARAMS.length;
@@ -234,7 +239,7 @@ export type EngineCommand =
    */
   | { type: 'fxSend'; instrument: number; value: number }
   /**
-   * Write a whole tone: the six sound parameters of a voice, in the
+   * Write a whole tone: the sound parameters of a voice, in the
    * library's order.
    */
   | { type: 'tone'; voice: number; values: number[] }

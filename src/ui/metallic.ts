@@ -1,14 +1,15 @@
 import type { Voice } from '../audio/protocol';
-import { METALLIC_KNOBS, type KnobSpec } from './params';
+import { HIHAT_KNOBS, METALLIC_KNOBS, type KnobSpec } from './params';
 
 /**
  * The two metallic modules: the Cymbal and the Hi-hat.
  *
  * They are built from the metallic engine of the library, which has its
  * own controls: the bank of its oscillators is scaled by the Tone Pitch
- * instead of naming a frequency, it computes no pitch sweep, and its
- * envelope has an attack of its own. The panels of the two modules carry
- * the controls the engine has, and nothing else.
+ * instead of naming a frequency. The Cymbal carries a Sweep and a Bend;
+ * the Hi-hat carries the Pitch and the Color, the two edges of its noise
+ * filter, and its Bend and Sweep are fixed at zero. The panels of the two
+ * modules carry the controls the engine has, and nothing else.
  *
  * The Hi-hat is one module with two instruments: the closed one and the
  * open one, which share the voice and its controls.
@@ -29,7 +30,7 @@ export const HIHAT_MODULE: MetallicModule = {
   voice: 'hihat',
   plateClass: 'strip-hihat',
   place: 'hihat',
-  knobs: METALLIC_KNOBS,
+  knobs: HIHAT_KNOBS,
 };
 
 /** The cymbal module. */

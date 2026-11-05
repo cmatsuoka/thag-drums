@@ -195,7 +195,7 @@ export class HiveEngine {
     this.poke();
   }
 
-  /** Write a whole tone: the six sound parameters of a voice, in the
+  /** Write a whole tone: the sound parameters of a voice, in the
    * library's order, in Q16.16. */
   setTone(voice: Voice, values: number[]): void {
     this.post({ type: 'tone', voice: voiceIndex(voice), values });

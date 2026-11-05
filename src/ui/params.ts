@@ -132,6 +132,22 @@ export const PARAM_SPECS: Readonly<Record<Param, ParamSpec>> = {
     step: 0.02,
     fineStep: 0.002,
   },
+  noiseBody: {
+    label: 'body',
+    unit: 'Hz',
+    taper: 'log',
+    decimals: 0,
+    step: 0.02,
+    fineStep: 0.002,
+  },
+  drive: {
+    label: 'drive',
+    unit: '',
+    taper: 'linear',
+    decimals: 2,
+    step: 0.02,
+    fineStep: 0.002,
+  },
 };
 
 /**
@@ -166,6 +182,44 @@ export const METALLIC_PARAM_SPECS: Readonly<
 };
 
 /**
+ * The controls of the Hi-hat, where they differ from the other metallic
+ * voice.
+ *
+ * The Noise of the Hi-hat is the cutoff of its noise filter and the Noise
+ * Body is the corner of its high-pass, so the two edges of the filter are
+ * printed as Pitch and Color. Its Tone Pitch scales the bank of its
+ * oscillators, and its Bell/Cymbal is printed as Bell.
+ */
+const HIHAT_PARAM_SPECS: Readonly<
+  Partial<Record<Param, ParamSpec>>
+> = {
+  noisePitch: {
+    label: 'pitch',
+    unit: 'Hz',
+    taper: 'log',
+    decimals: 0,
+    step: 0.02,
+    fineStep: 0.002,
+  },
+  noiseBody: {
+    label: 'color',
+    unit: 'Hz',
+    taper: 'log',
+    decimals: 0,
+    step: 0.02,
+    fineStep: 0.002,
+  },
+  bellCymbal: {
+    label: 'bell',
+    unit: '',
+    taper: 'linear',
+    decimals: 2,
+    step: 0.02,
+    fineStep: 0.002,
+  },
+};
+
+/**
  * A knob of a module strip: one of the engine's own parameters.
  */
 export interface KnobSpec {
@@ -190,19 +244,36 @@ export const STRIP_KNOBS: readonly KnobSpec[] = [
 ];
 
 /**
- * The long knob column of a metallic module, in the order of the engine's
- * own parameters.
+ * The long knob column of the Cymbal, in the order of the engine's own
+ * parameters.
  *
- * The metallic voices carry their own six controls: the Sweep is the
- * contour of the noise filter, the Tone Pitch scales the bank of the
- * oscillators, the Bend sweeps that bank, the Decay is the release of the
- * envelope, the Noise/Tone is the tone amount of the noise and the
- * Bell/Cymbal is the balance between the bank and the noise.
+ * The Cymbal carries the Sweep, the contour of the noise filter, the Tone
+ * Pitch that scales the bank of the oscillators, the Bend that sweeps that
+ * bank, the Decay, the release of the envelope, the Noise/Tone and the
+ * Bell/Cymbal.
  */
 export const METALLIC_KNOBS: readonly KnobSpec[] = [
   { kind: 'param', param: 'sweep' },
   { kind: 'param', param: 'tonePitch' },
   { kind: 'param', param: 'bend' },
+  { kind: 'param', param: 'decay' },
+  { kind: 'param', param: 'noiseTone' },
+  { kind: 'param', param: 'bellCymbal' },
+];
+
+/**
+ * The long knob column of the Hi-hat, in the order of the engine's own
+ * parameters.
+ *
+ * The Hi-hat carries the Pitch and the Color, the two edges of its noise
+ * filter, the Tone Pitch that scales the bank of the oscillators, the
+ * Decay, the release of the envelope, the Noise/Tone and the Bell. Its
+ * Bend and Sweep are fixed at zero in the engine, so they have no knob.
+ */
+export const HIHAT_KNOBS: readonly KnobSpec[] = [
+  { kind: 'param', param: 'noisePitch' },
+  { kind: 'param', param: 'tonePitch' },
+  { kind: 'param', param: 'noiseBody' },
   { kind: 'param', param: 'decay' },
   { kind: 'param', param: 'noiseTone' },
   { kind: 'param', param: 'bellCymbal' },
@@ -230,6 +301,12 @@ export const MIX_KNOBS: readonly KnobSpec[] = [
  * parameter of a drum voice means something else there.
  */
 export function specFor(spec: KnobSpec, voice?: Voice): ParamSpec {
+  if (voice === 'hihat') {
+    const hihat = HIHAT_PARAM_SPECS[spec.param];
+    if (hihat !== undefined) {
+      return hihat;
+    }
+  }
   if (voice !== undefined && METALLIC_VOICES.includes(voice)) {
     const metallic = METALLIC_PARAM_SPECS[spec.param];
     if (metallic !== undefined) {
