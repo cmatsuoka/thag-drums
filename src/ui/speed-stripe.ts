@@ -11,9 +11,9 @@
  * angle of the right side of the X of the name: the two slanted edges of
  * the point run parallel to the arms of the letter.
  *
- * The strip is painted a light gray, darker than the brushed aluminium of
- * the plate, and the paint is flat for now: the diagonals that would cut
- * it are not there yet.
+ * The strip is a darkening of the plate under it, not a colour of its own:
+ * the paint is a translucent black, so the brushed aluminium and its
+ * gradient show through, only darker.
  *
  * The drawing carries no name of its own: the module's name is spelled
  * out for the readers next to it.
@@ -85,41 +85,14 @@ export function speedStripe(): SVGElement {
   svg.setAttribute('focusable', 'false');
   svg.setAttribute('class', 'fx-stripe');
 
-  const defs = document.createElementNS(SVG_NS, 'defs');
-
-  /* The paint of the strip: it is a light gray, and it is not flat: the
-   * metal catches the light along its top and softens towards its foot.
-   * It stays darker than the brushed aluminium of the plate. */
-  const metal = document.createElementNS(SVG_NS, 'linearGradient');
-  metal.setAttribute('id', 'fx-stripe-metal');
-  metal.setAttribute('x1', '0');
-  metal.setAttribute('y1', '0');
-  metal.setAttribute('x2', '0');
-  metal.setAttribute('y2', '1');
-  const top = document.createElementNS(SVG_NS, 'stop');
-  top.setAttribute('offset', '0');
-  top.setAttribute('stop-color', '#c4c9cc');
-  const upper = document.createElementNS(SVG_NS, 'stop');
-  upper.setAttribute('offset', '0.18');
-  upper.setAttribute('stop-color', '#b8bdc1');
-  const bottom = document.createElementNS(SVG_NS, 'stop');
-  bottom.setAttribute('offset', '0.62');
-  bottom.setAttribute('stop-color', '#adb2b6');
-  const foot = document.createElementNS(SVG_NS, 'stop');
-  foot.setAttribute('offset', '1');
-  foot.setAttribute('stop-color', '#9fa5a9');
-  metal.append(top, upper, bottom, foot);
-  defs.append(metal);
-
-  svg.append(defs);
-
   /* The paint of the strip, with the diagonals cut out of it. It is a
    * silk screen print on the faceplate: it has no outline and no raised
-   * edge, only the paint itself. */
+   * edge, only the paint itself. The paint is a translucent black, so it
+   * darkens the plate under it instead of laying a colour over it. */
   const body = document.createElementNS(SVG_NS, 'path');
   body.setAttribute('d', painted());
   body.setAttribute('fill-rule', 'evenodd');
-  body.setAttribute('fill', 'url(#fx-stripe-metal)');
+  body.setAttribute('fill', 'rgba(0, 0, 0, 0.1)');
   svg.append(body);
 
   return svg;

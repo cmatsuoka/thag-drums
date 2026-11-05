@@ -831,6 +831,28 @@ body {
   gap: 6px;
 }
 
+/* The reverb stands on a square of darkened plate, toned like the speed
+ * stripe: a translucent black that darkens the brushed aluminium under
+ * it. The square is as wide as the display above it, and the knobs sit on
+ * top of it and keep their own finish. */
+.fx-cluster-reverb,
+.fx-cluster-gate {
+  box-sizing: border-box;
+  width: 120px;
+  padding: 10px 14px;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+/* The print of an effect stands on the darkened plate, so it is inked at
+ * full strength and carries no light shadow to blur it. */
+.fx-cluster-reverb .fx-caption,
+.fx-cluster-reverb .knob-label,
+.fx-cluster-gate .fx-caption,
+.fx-cluster-gate .knob-label {
+  color: var(--plate-ink);
+  text-shadow: none;
+}
+
 /* The name of an effect, printed on the plate above its knobs. */
 .fx-caption {
   font-family: "Figtree", "Helvetica Neue", Helvetica, Arial, system-ui,

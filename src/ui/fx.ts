@@ -305,16 +305,20 @@ export function createFxModule(
     return { element: cluster, grid };
   };
 
-  /* The reverb, under the display: a grid of two by two knobs. */
+  /* The reverb, under the display: a grid of two by two knobs, set on a
+   * darkened square of the plate the way the speed stripe darkens it. */
   const reverb = buildCluster('reverb');
+  reverb.element.classList.add('fx-cluster-reverb');
   body.append(reverb.element);
   for (const control of REVERB_CONTROLS) {
     placements.push({ parent: reverb.grid, control });
   }
 
   /* The gate, below it: a grid of two by two knobs, and the release on
-   * its own, in the middle of the plate. */
+   * its own, in the middle of the plate. It stands on a darkened
+   * rectangle, like the reverb. */
   const gate = buildCluster('gate');
+  gate.element.classList.add('fx-cluster-gate');
   for (const control of GATE_CONTROLS) {
     placements.push({ parent: gate.grid, control });
   }
