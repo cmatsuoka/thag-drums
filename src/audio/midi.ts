@@ -21,6 +21,7 @@ export const MIDI_NOTE_MAP: Readonly<Record<number, Instrument>> = {
   47: 'tom2', // B2
   50: 'tom1', // D3
   51: 'tom1', // D#3
+  53: 'hihatClosed', // F3
   54: 'hihatClosed', // F#3
   58: 'hihatOpen', // A#3
 };
