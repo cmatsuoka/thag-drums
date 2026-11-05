@@ -641,6 +641,345 @@ try {
     'a hold on the reset puts the knobs back to their defaults',
   );
 
+  /* The memory positions of a module: one of them is always selected,
+   * and the selected one is the tone the engine is playing. */
+  const selectedMemory = async (voice) =>
+    page.evaluate((voice) => {
+      const buttons = document.querySelectorAll(
+        `.strip[data-voice="${voice}"] .strip-mem`,
+      );
+      for (const button of buttons) {
+        if (button.getAttribute('aria-pressed') === 'true') {
+          return Number(button.dataset.position);
+        }
+      }
+      return 0;
+    }, voice);
+
+  for (const voice of PLATED_VOICES) {
+    equal(
+      await selectedMemory(voice),
+      1,
+      `the ${voice} module starts on its first memory position`,
+    );
+  }
+
+  const markedSelection = await page.evaluate(
+    () =>
+      document.querySelectorAll('.strip-mem.is-selected').length ===
+      document.querySelectorAll('.strip[data-voice]').length,
+  );
+  check(markedSelection, 'the selected memory position is marked on the faceplate');
+
+  /* The first position of the snare is a tone of its own: the values it
+   * was given. */
+  const q16 = (value) => Math.round(value * 65536);
+  const snareInfo = await page.evaluate(
+    ({ voices, params }) => {
+      const info = window.hive?.paramInfo ?? [];
+      const voice = voices.indexOf('snare');
+      const out = {};
+      for (const entry of info) {
+        if (entry.voice === voice) {
+          out[params[entry.param]] = entry;
+        }
+      }
+      return out;
+    },
+    { voices: VOICES, params: PARAMS },
+  );
+
+  const snareState = await readEngineState(page);
+  equal(
+    stateValue(snareState, 'snare', 'noisePitch'),
+    q16(14000),
+    'the first position of the snare holds the noise it was given',
+  );
+  equal(
+    stateValue(snareState, 'snare', 'tonePitch'),
+    q16(96),
+    'the first position of the snare holds the tone it was given',
+  );
+  equal(
+    stateValue(snareState, 'snare', 'bend'),
+    q16(19.4),
+    'the first position of the snare holds the bend it was given',
+  );
+  equal(
+    stateValue(snareState, 'snare', 'noiseTone'),
+    q16(0.5),
+    'the first position of the snare holds the noise/tone it was given',
+  );
+  equal(
+    stateValue(snareState, 'snare', 'clickTone'),
+    q16(0.64),
+    'the first position of the snare holds the click it was given',
+  );
+  equal(
+    stateValue(snareState, 'snare', 'decay'),
+    q16(0.61),
+    'the first position of the snare holds the decay it was given',
+  );
+
+  /* Picking a position recalls the tone in it. The first two positions
+   * of the snare are tones of their own. */
+  const snareMemory = (position) =>
+    page.locator(`.strip[data-voice="snare"] .strip-mem[data-position="${position}"]`);
+
+  await snareMemory(2).click();
+  await page.waitForTimeout(300);
+  equal(
+    await selectedMemory('snare'),
+    2,
+    'the second position of the snare is selected',
+  );
+  const snareSecond = await readEngineState(page);
+  equal(
+    stateValue(snareSecond, 'snare', 'noisePitch'),
+    q16(6044),
+    'the second position of the snare holds the noise it was given',
+  );
+  equal(
+    stateValue(snareSecond, 'snare', 'tonePitch'),
+    q16(92),
+    'the second position of the snare holds the tone it was given',
+  );
+  equal(
+    stateValue(snareSecond, 'snare', 'bend'),
+    q16(8.5),
+    'the second position of the snare holds the bend it was given',
+  );
+  equal(
+    stateValue(snareSecond, 'snare', 'decay'),
+    q16(0.53),
+    'the second position of the snare holds the decay it was given',
+  );
+  equal(
+    stateValue(snareSecond, 'snare', 'noiseTone'),
+    q16(0.77),
+    'the second position of the snare holds the noise/tone it was given',
+  );
+  equal(
+    stateValue(snareSecond, 'snare', 'clickTone'),
+    q16(0.3),
+    'the second position of the snare holds the click it was given',
+  );
+
+  /* The third position of the snare is a tone of its own too. */
+  await snareMemory(3).click();
+  await page.waitForTimeout(300);
+  const snareThird = await readEngineState(page);
+  equal(
+    stateValue(snareThird, 'snare', 'noisePitch'),
+    q16(2086),
+    'the third position of the snare holds the noise it was given',
+  );
+  equal(
+    stateValue(snareThird, 'snare', 'tonePitch'),
+    q16(118),
+    'the third position of the snare holds the tone it was given',
+  );
+  equal(
+    stateValue(snareThird, 'snare', 'bend'),
+    q16(2.4),
+    'the third position of the snare holds the bend it was given',
+  );
+  equal(
+    stateValue(snareThird, 'snare', 'decay'),
+    q16(0.56),
+    'the third position of the snare holds the decay it was given',
+  );
+  equal(
+    stateValue(snareThird, 'snare', 'noiseTone'),
+    q16(0.05),
+    'the third position of the snare holds the noise/tone it was given',
+  );
+  equal(
+    stateValue(snareThird, 'snare', 'clickTone'),
+    q16(0.16),
+    'the third position of the snare holds the click it was given',
+  );
+
+  /* The fourth position of the snare is a tone of its own too. */
+  await snareMemory(4).click();
+  await page.waitForTimeout(300);
+  const snareFourth = await readEngineState(page);
+  equal(
+    stateValue(snareFourth, 'snare', 'noisePitch'),
+    q16(4433),
+    'the fourth position of the snare holds the noise it was given',
+  );
+  equal(
+    stateValue(snareFourth, 'snare', 'tonePitch'),
+    q16(40),
+    'the fourth position of the snare holds the tone it was given',
+  );
+  equal(
+    stateValue(snareFourth, 'snare', 'bend'),
+    q16(46.8),
+    'the fourth position of the snare holds the bend it was given',
+  );
+  equal(
+    stateValue(snareFourth, 'snare', 'decay'),
+    q16(0.7),
+    'the fourth position of the snare holds the decay it was given',
+  );
+  equal(
+    stateValue(snareFourth, 'snare', 'noiseTone'),
+    q16(0.7),
+    'the fourth position of the snare holds the noise/tone it was given',
+  );
+  equal(
+    stateValue(snareFourth, 'snare', 'clickTone'),
+    q16(0.82),
+    'the fourth position of the snare holds the click it was given',
+  );
+
+  /* The other modules keep the factory values of the engine. */
+  const kickInfo = await page.evaluate(
+    ({ voices, params }) => {
+      const info = window.hive?.paramInfo ?? [];
+      const voice = voices.indexOf('kick');
+      const out = {};
+      for (const entry of info) {
+        if (entry.voice === voice) {
+          out[params[entry.param]] = entry;
+        }
+      }
+      return out;
+    },
+    { voices: VOICES, params: PARAMS },
+  );
+  equal(
+    stateValue(await readEngineState(page), 'kick', 'noisePitch'),
+    kickInfo.noisePitch.default,
+    'the first position of the kick holds the factory values',
+  );
+
+  await snareMemory(2).click();
+  await page.waitForTimeout(300);
+
+  /* A knob that is moved while a position is selected belongs to that
+   * position: it is still there when the position is picked again. */
+  const snareTone = page.locator(
+    '.strip[data-voice="snare"] .knob[data-param="tonePitch"]',
+  );
+  await snareTone.press('ArrowUp');
+  await page.waitForTimeout(300);
+  const snareEdited = Number(await snareTone.getAttribute('data-value'));
+  check(
+    snareEdited !== q16(92),
+    'the tone of the snare moves in the second position',
+  );
+
+  await snareMemory(1).click();
+  await page.waitForTimeout(300);
+  equal(
+    stateValue(await readEngineState(page), 'snare', 'tonePitch'),
+    q16(96),
+    'the first position of the snare holds its own tone again',
+  );
+
+  await snareMemory(2).click();
+  await page.waitForTimeout(300);
+  equal(
+    stateValue(await readEngineState(page), 'snare', 'tonePitch'),
+    snareEdited,
+    'the edit of the second position is still there',
+  );
+
+  /* The reset of the module puts the selected position back to its
+   * built-in values. */
+  await snareMemory(1).click();
+  await page.waitForTimeout(300);
+  const snareReset = page.locator('.strip[data-voice="snare"] .strip-reset');
+  const snareBox = await snareReset.boundingBox();
+  await page.mouse.move(
+    snareBox.x + snareBox.width / 2,
+    snareBox.y + snareBox.height / 2,
+  );
+  await page.mouse.down();
+  await page.waitForTimeout(1400);
+  await page.mouse.up();
+  await page.waitForTimeout(300);
+  equal(
+    stateValue(await readEngineState(page), 'snare', 'noisePitch'),
+    q16(14000),
+    'the reset of the module puts the selected position back to its built-in values',
+  );
+
+  /* The mixer of a module is not part of a tone: it belongs to the
+   * module and keeps its values when the position changes. */
+  const snareVolume = page.locator(
+    '.strip[data-voice="snare"] .knob[data-param="volume"]',
+  );
+  await snareVolume.press('ArrowDown');
+  await page.waitForTimeout(300);
+  const volume = Number(await snareVolume.getAttribute('data-value'));
+  await snareMemory(4).click();
+  await page.waitForTimeout(300);
+  equal(
+    stateValue(await readEngineState(page), 'snare', 'volume'),
+    volume,
+    'the mixer of the module keeps its value when the position changes',
+  );
+
+  /* The memories of the kit and the effects of the bus are kept in the
+   * browser: the kit comes back the way it was left. */
+  await snareMemory(3).click();
+  await page.waitForTimeout(300);
+  await snareTone.press('ArrowDown');
+  await page.waitForTimeout(300);
+  const kept = Number(await snareTone.getAttribute('data-value'));
+
+  const wet = page.locator('.strip-fx-module .knob[data-control="level"]');
+  const wetBefore = Number(await wet.getAttribute('data-value'));
+  await wet.press('ArrowUp');
+  await page.waitForTimeout(300);
+  let wetAfter = Number(await wet.getAttribute('data-value'));
+  if (wetAfter === wetBefore) {
+    await wet.press('ArrowDown');
+    await page.waitForTimeout(300);
+    wetAfter = Number(await wet.getAttribute('data-value'));
+  }
+  check(wetAfter !== wetBefore, 'the level of the effects moves');
+
+  /* The values are written once the knobs have been quiet for a
+   * second. */
+  await page.waitForTimeout(1200);
+
+  await page.reload();
+  await page.waitForFunction(
+    () =>
+      (document.querySelector('#engine-status')?.textContent ?? '').includes(
+        'libhive 0.',
+      ),
+    undefined,
+    { timeout: TIMEOUT },
+  );
+  await page.waitForTimeout(500);
+
+  equal(
+    await selectedMemory('snare'),
+    3,
+    'the selected memory position comes back after a reload',
+  );
+  equal(
+    stateValue(await readEngineState(page), 'snare', 'tonePitch'),
+    kept,
+    'the values of the memory position come back after a reload',
+  );
+  equal(
+    (await readEngineFxState(page))[3],
+    wetAfter,
+    'the effects of the kit come back after a reload',
+  );
+  equal(
+    stateValue(await readEngineState(page), 'snare', 'volume'),
+    volume,
+    'the mixer of the module comes back after a reload',
+  );
+
   await page.keyboard.press('l');
   await page.waitForTimeout(200);
   check(

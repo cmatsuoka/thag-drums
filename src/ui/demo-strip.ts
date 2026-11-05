@@ -57,6 +57,10 @@ export function createDemoStrip(
   resetButton.className = 'demo-button';
   resetButton.id = 'reset';
   resetButton.textContent = 'Reset';
+  resetButton.setAttribute(
+    'aria-label',
+    'reset the whole machine: the engine, the memories of every module and the effects',
+  );
   resetButton.addEventListener('click', () => {
     options.onReset();
   });

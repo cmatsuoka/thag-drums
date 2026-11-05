@@ -1,14 +1,19 @@
 import type { HiveEngine } from '../audio/engine';
 import {
+  CHANNEL_PARAMS,
+  FX_PARAMS,
   PARAM_COUNT,
+  SOUND_PARAMS,
   VOICE_INSTRUMENTS,
   instrumentIndex,
   paramIndex,
   voiceIndex,
+  type ChannelParam,
   type EngineState,
   type Instrument,
   type Param,
   type ParamInfo,
+  type SoundParam,
   type Voice,
 } from '../audio/protocol';
 import { fromQ16, toQ16 } from '../audio/units';
@@ -17,9 +22,12 @@ import {
   downloadModuleExport,
 } from './export';
 import { createFitter, type Fitter } from './fit';
+import { createChannelStore, type ChannelStore } from './channel';
 import { createFxModule } from './fx';
-import { CYMBAL_MODULE, HIHAT_MODULE } from './metallic';
+import { createFxStore, type FxStore } from './fx-store';
 import { createKnob, type Knob } from './knob';
+import { createMemoryStore, MEMORY_POSITIONS, type MemoryStore } from './memory';
+import { CYMBAL_MODULE, HIHAT_MODULE } from './metallic';
 import { MODULE_NAMES } from './names';
 import {
   MIX_KNOBS,
@@ -45,7 +53,12 @@ import { printedWord } from './wordmark';
  * clamped is shown clamped.
  *
  * Under the mixer knobs of every module stands a small trigger button: it
- * plays the module's own voice, the way a key of the keyboard does.
+ * plays the module's own voice, the way a key of the keyboard does. Under
+ * it stand the four memory positions of the module: one of them is always
+ * selected, the selected one is lit, and the engine plays the tone of the
+ * position that is selected. A position holds the tone of the module — the
+ * sound knobs — and not the mixer of the channel: the mixer belongs to the
+ * module and keeps the values the user has set.
  *
  * The hi-hat module stands at the end of the row, and the effects module
  * after it: the hi-hat is the metallic voice of the engine, and the
@@ -73,6 +86,8 @@ interface StripWidgets {
   readonly knobColumn: HTMLElement;
   readonly mixColumn: HTMLElement;
   readonly knobs: KnobWidget[];
+  /** The buttons of the memory positions of the module. */
+  readonly memoryButtons: HTMLButtonElement[];
   /** The control that writes the settings of the module to a file. */
   readonly exportButton: HTMLButtonElement;
   /** The control that puts the knobs of the module back to their defaults. */
@@ -161,13 +176,6 @@ const TRIGGER_INSTRUMENT: Readonly<Record<Voice, Instrument>> = {
  */
 const RESET_HOLD_MS = 1000;
 
-/**
- * The number of memory positions of a module. The four buttons for them
- * stand under the knobs of the module, in two columns; they are not wired
- * yet.
- */
-const MEMORY_POSITIONS = 4;
-
 function findInfo(
   info: readonly ParamInfo[],
   voice: Voice,
@@ -175,6 +183,16 @@ function findInfo(
 ): ParamInfo | undefined {
   const v = voiceIndex(voice);
   return info.find((entry) => entry.voice === v && entry.param === param);
+}
+
+/**
+ * Whether a parameter is part of a tone.
+ *
+ * The sound knobs are: the mixer of the channel and the effects send
+ * belong to the module and not to the tone in it.
+ */
+function isSoundParam(param: Param): param is SoundParam {
+  return (SOUND_PARAMS as readonly string[]).includes(param);
 }
 
 export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
@@ -195,9 +213,21 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
 
   const strips = new Map<Voice, StripWidgets>();
 
-  /* The factory value of every control of every voice, as the engine's own
-   * table reports it: the reset of a module puts its knobs back to these. */
-  const voiceDefaults = new Map<Voice, Map<Param, number>>();
+  /* The memories of the kit: the four positions of every module, the
+   * values in them and the position that is selected. They are the
+   * panel's own store — the engine has no memory storage — and they are
+   * kept in the browser, so the kit comes back the way it was left. */
+  let memory: MemoryStore | null = null;
+
+  /* The channel of every module: the mixer of the voice and its effects
+   * send. They belong to the module and not to the tone in it, so they
+   * are kept apart from the memories and written down as the user sets
+   * them. */
+  let channel: ChannelStore | null = null;
+
+  /* The memory of the effects module: the nine controls of the shared
+   * FX bus. */
+  let fxStore: FxStore | null = null;
 
   for (const voice of PANEL_ORDER) {
     const module = MODULES[voice];
@@ -256,11 +286,14 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
       engine.trigger(TRIGGER_INSTRUMENT[voice], 127);
     });
 
-    /* The memory positions of the module: four buttons for the tones the
-     * module will hold. They are not wired yet — the four tones of a
-     * module are a design that is still deferred. */
+    /* The memory positions of the module: four buttons, one for every
+     * tone the module holds. One of them is always selected, and the
+     * selected one is the tone the engine is playing: picking a position
+     * recalls its values, and moving a knob writes them back into it. */
     const pads = document.createElement('div');
     pads.className = 'strip-pads';
+
+    const memoryButtons: HTMLButtonElement[] = [];
 
     for (let position = 1; position <= MEMORY_POSITIONS; position += 1) {
       const memoryButton = document.createElement('button');
@@ -273,14 +306,20 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
         'aria-label',
         `memory position ${position} of the ${name.spoken} module`,
       );
-      /* The button is there, but nothing is behind it yet. */
-      memoryButton.setAttribute('aria-disabled', 'true');
+      /* The button selects a position: it is pressed when the position is
+       * the selected one. */
+      memoryButton.setAttribute('aria-pressed', 'false');
+      memoryButton.addEventListener('click', () => {
+        selectMemory(voice, position);
+      });
       pads.append(memoryButton);
+      memoryButtons.push(memoryButton);
     }
 
-    /* The reset of the module: it puts the knobs back to their defaults.
-     * It is the one control of a module that throws something away, so it
-     * is the quietest one and it has to be held down. */
+    /* The reset of the module: it puts the tone of the selected memory
+     * position back to its built-in values. It is the one control of a
+     * module that throws something away, so it is the quietest one and it
+     * has to be held down. */
     const resetButton = document.createElement('button');
     resetButton.type = 'button';
     resetButton.className = 'strip-reset';
@@ -288,7 +327,7 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
     resetButton.textContent = 'RST';
     resetButton.setAttribute(
       'aria-label',
-      `reset the knobs of the ${name.spoken} module`,
+      `reset the selected tone of the ${name.spoken} module`,
     );
 
     wireReset(voice, triggerLamp, resetButton);
@@ -361,6 +400,7 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
       knobColumn,
       mixColumn,
       knobs: [],
+      memoryButtons,
       exportButton,
       resetButton,
       fxCell,
@@ -372,7 +412,11 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
    * and it carries no voice of the engine, only the controls of the
    * shared FX bus. */
   const fx = createFxModule((param, value) => {
-    engine.setFxParam(param, toQ16(value));
+    const raw = toQ16(value);
+    engine.setFxParam(param, raw);
+    /* The bus is remembered: the effects of the kit come back the way
+     * they were left. */
+    fxStore?.write(param, raw);
   });
   plateRow.append(fx.element);
 
@@ -388,19 +432,93 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
   host.append(fitHost);
 
   /**
-   * Put the knobs of a module back to their defaults.
+   * Put the tone of a module back to its built-in values.
    *
-   * The defaults are the factory values of the engine's own table. They
-   * are written to the engine, and the engine holds them: the panel reads
-   * them back like every other value, so the knobs follow the engine and
-   * not the other way round.
+   * The built-in values are those of the selected memory position: the
+   * factory values of the engine's own table, and the tones of the Snare,
+   * which are tones of their own. The position is put back to them, and
+   * the values are written to the engine, so the panel reads them back
+   * like every other value and the knobs follow the engine and not the
+   * other way round.
+   *
+   * The mixer of the channel is not part of a tone: it keeps the values
+   * the user has set.
    */
   function resetVoice(voice: Voice): void {
-    const defaults = voiceDefaults.get(voice);
-    if (defaults === undefined) {
+    const store = memory;
+    if (store === null) {
       return;
     }
-    for (const [param, value] of defaults) {
+    store.resetSelected(voice);
+    engine.setTone(voice, Array.from(store.values(voice)));
+  }
+
+  /**
+   * Show which memory position of a module is selected.
+   *
+   * The selected button is pressed in and lit, the other ones are not,
+   * and the button tells the assistive technology that it is pressed.
+   */
+  function updateMemoryButtons(voice: Voice): void {
+    const strip = strips.get(voice);
+    if (strip === undefined) {
+      return;
+    }
+    const selected = memory?.selected(voice) ?? 1;
+    const spoken = MODULE_NAMES[voice].spoken;
+
+    for (const button of strip.memoryButtons) {
+      const position = Number(button.dataset.position ?? '1');
+      const isSelected = position === selected;
+      button.classList.toggle('is-selected', isSelected);
+      button.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
+      button.setAttribute(
+        'aria-label',
+        `memory position ${position} of the ${spoken} module${
+          isSelected ? ', selected' : ''
+        }`,
+      );
+    }
+  }
+
+  /**
+   * Select a memory position of a module.
+   *
+   * The position is selected, the tone in it is written to the engine,
+   * and the engine holds it: the knobs of the module follow the engine
+   * and show the tone that was picked. The mixer of the channel is not
+   * part of a tone and stays where the user left it.
+   */
+  function selectMemory(voice: Voice, position: number): void {
+    const store = memory;
+    if (store === null) {
+      return;
+    }
+    store.select(voice, position);
+    updateMemoryButtons(voice);
+    engine.setTone(voice, Array.from(store.values(voice)));
+  }
+
+  /**
+   * Write the channel of a module to the engine: the mixer of the voice
+   * and its effects send.
+   */
+  function applyChannel(voice: Voice): void {
+    const store = channel;
+    if (store === null) {
+      return;
+    }
+    const values = store.values(voice);
+    for (let slot = 0; slot < CHANNEL_PARAMS.length; slot += 1) {
+      const param = CHANNEL_PARAMS[slot];
+      const value = values[slot];
+      if (param === undefined || value === undefined) {
+        continue;
+      }
+      if (param === 'fxSend') {
+        engine.setInstrumentFxSend(TRIGGER_INSTRUMENT[voice], value);
+        continue;
+      }
       engine.setParam(voice, param, value);
     }
   }
@@ -525,11 +643,20 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
       fineStep: meta.fineStep,
       value: range.default,
       onChange: (value) => {
+        const raw = toQ16(value);
         if (write !== undefined) {
           write(value);
-          return;
+        } else {
+          engine.setParam(voice, spec.param, raw);
         }
-        engine.setParam(voice, spec.param, toQ16(value));
+        /* The value belongs to the tone that is selected, or to the
+         * channel of the module: the mixer of a voice is not part of a
+         * tone. */
+        if (isSoundParam(spec.param)) {
+          memory?.write(voice, spec.param, raw);
+        } else {
+          channel?.write(voice, spec.param as ChannelParam, raw);
+        }
       },
     });
 
@@ -570,10 +697,6 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
        * these and nothing else. */
       const supported: Param[] = [];
 
-      /* The factory value of every control of this voice: the reset of the
-       * module puts its knobs back to these. */
-      const defaults = new Map<Param, number>();
-
       for (const spec of MODULES[voice].soundKnobs) {
         const index = paramIndex(spec.param);
         const entry = findInfo(info, voice, index);
@@ -591,7 +714,6 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
         strip.knobColumn.append(widget.cell);
         strip.knobs.push(widget);
         supported.push(spec.param);
-        defaults.set(spec.param, entry.default);
       }
 
       /* The mixer of the channel, in its own shorter column. */
@@ -612,7 +734,6 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
         strip.mixColumn.append(widget.cell);
         strip.knobs.push(widget);
         supported.push(spec.param);
-        defaults.set(spec.param, entry.default);
       }
 
       /* The effects send of the module: the share of the module that goes
@@ -639,11 +760,9 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
         strip.fxCell.append(widget.cell);
         strip.knobs.push(widget);
         supported.push('fxSend');
-        defaults.set('fxSend', fxEntry.default);
       }
 
       supportedParams.set(voice, supported);
-      voiceDefaults.set(voice, defaults);
     }
 
     fitter.update();
@@ -702,6 +821,37 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
   const unsubscribeReady = engine.onReady((info, fxInfo) => {
     fx.build(fxInfo);
     build(info);
+
+    /* The memories of the kit: the built-in tone of every position, the
+     * ones the browser kept from an earlier visit, and the position that
+     * is selected for every module. */
+    memory = createMemoryStore(info, PANEL_ORDER);
+
+    /* The channels of the kit: the mixer of every voice and its effects
+     * send, as the user has set them. */
+    channel = createChannelStore(info, PANEL_ORDER);
+
+    /* The effects of the kit: the factory values of the bus and the ones
+     * the browser kept. */
+    fxStore = createFxStore(fxInfo);
+
+    /* The engine takes the values of the bus the browser kept, and every
+     * module takes the values of the position that is selected: the kit
+     * comes back the way it was left. */
+    for (const entry of fxInfo) {
+      const param = FX_PARAMS[entry.param];
+      if (param === undefined) {
+        continue;
+      }
+      engine.setFxParam(param, fxStore.values[entry.param] ?? 0);
+    }
+
+    for (const voice of PANEL_ORDER) {
+      updateMemoryButtons(voice);
+      engine.setTone(voice, Array.from(memory.values(voice)));
+      applyChannel(voice);
+    }
+
     if (lastState !== null) {
       applyState(lastState);
     }
@@ -711,14 +861,60 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
     applyState(state);
   });
 
+  /* The memories of the kit are written to the browser as they change.
+   * The page may go away before the last value is written, so the pending
+   * one is flushed when the page is hidden. */
+  const flush = (): void => {
+    memory?.flush();
+    channel?.flush();
+    fxStore?.flush();
+  };
+
+  window.addEventListener('pagehide', flush);
+
+  const onVisibility = (): void => {
+    if (document.visibilityState === 'hidden') {
+      flush();
+    }
+  };
+  window.addEventListener('visibilitychange', onVisibility);
+
   return {
+    /**
+     * The reset of the demo: the whole machine goes back to the factory.
+     *
+     * The engine takes its factory values, every memory position of every
+     * module goes back to its built-in values, and the effects of the kit
+     * go back to the factory values of the bus. The position that is
+     * selected stays the selected one.
+     */
     reset(): void {
       engine.reset();
+
+      const store = memory;
+      if (store !== null) {
+        store.resetAll();
+        for (const voice of PANEL_ORDER) {
+          engine.setTone(voice, Array.from(store.values(voice)));
+        }
+      }
+
+      channel?.resetAll();
+      for (const voice of PANEL_ORDER) {
+        applyChannel(voice);
+      }
+
+      fxStore?.reset();
     },
 
     dispose(): void {
       unsubscribeReady();
       unsubscribeState();
+      window.removeEventListener('pagehide', flush);
+      window.removeEventListener('visibilitychange', onVisibility);
+      memory?.dispose();
+      channel?.dispose();
+      fxStore?.dispose();
       fx.dispose();
       for (const strip of strips.values()) {
         for (const widget of strip.knobs) {

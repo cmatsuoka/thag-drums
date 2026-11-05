@@ -77,7 +77,7 @@ export const PARAM_SPECS: Readonly<Record<Param, ParamSpec>> = {
     fineStep: 0.002,
   },
   clickTone: {
-    label: 'click/drum',
+    label: 'click',
     unit: '',
     taper: 'linear',
     decimals: 2,
@@ -229,7 +229,7 @@ export interface KnobSpec {
 
 /**
  * The long knob column of a module strip, in the order of the hardware:
- * Noise, Tone, Bend, Decay, Noise/Tone and Click/Drum.
+ * Noise, Tone, Bend, Decay, Noise/Tone and Click.
  *
  * The strip is built from this list and from the engine's own table: a
  * knob the engine does not support is not on the panel.

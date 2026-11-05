@@ -74,6 +74,22 @@ export type SoundParam = (typeof SOUND_PARAMS)[number];
 export const SOUND_PARAM_COUNT = SOUND_PARAMS.length;
 
 /**
+ * The controls of the channel of a module: the mixer values of the voice
+ * and the share of the voice that goes to the effects bus of the kit.
+ *
+ * They belong to the module and not to the tone in it: they are the same
+ * for every memory position of the module.
+ */
+export const CHANNEL_PARAMS = [
+  'volume',
+  'pan',
+  'sensitivity',
+  'fxSend',
+] as const;
+export type ChannelParam = (typeof CHANNEL_PARAMS)[number];
+export const CHANNEL_PARAM_COUNT = CHANNEL_PARAMS.length;
+
+/**
  * The nine parameters of the shared FX bus, in the library's own order:
  * the four of the reverb and the five of the gate.
  */
@@ -157,6 +173,36 @@ export function instrumentIndex(instrument: Instrument): number {
 
 export function paramIndex(param: Param): number {
   return PARAMS.indexOf(param);
+}
+
+/**
+ * The place of a parameter in the sound parameters, or -1 when it is not
+ * one of them: the mixer values of the channel and the effects send are
+ * not part of a tone.
+ *
+ * The parameter is the index in the library's own order of parameters.
+ */
+export function soundParamIndex(param: number): number {
+  const name = PARAMS[param];
+  if (name === undefined) {
+    return -1;
+  }
+  return SOUND_PARAMS.indexOf(name as SoundParam);
+}
+
+/**
+ * The place of a parameter in the controls of the channel, or -1 when it
+ * is not one of them: the Volume, the Pan, the Sens and the effects send
+ * belong to the module and not to the tone in it.
+ *
+ * The parameter is the index in the library's own order of parameters.
+ */
+export function channelParamIndex(param: number): number {
+  const name = PARAMS[param];
+  if (name === undefined) {
+    return -1;
+  }
+  return CHANNEL_PARAMS.indexOf(name as ChannelParam);
 }
 
 /**
