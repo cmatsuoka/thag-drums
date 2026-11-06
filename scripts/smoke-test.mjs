@@ -278,8 +278,9 @@ for (const voice of [VOICE.CYMBAL, VOICE.HIHAT]) {
   );
 }
 
-/* The Cymbal keeps the Sweep and the Bend; the Hi-hat has the two edges of
- * its noise filter instead, and its Bend and Sweep are fixed at zero. */
+/* The Cymbal keeps the Sweep and the Bend; the Hi-hat has neither, as its
+ * Bend and Sweep are fixed at zero. Both metallic voices shape their noise
+ * filter with the Noise and Noise Body edges. */
 for (const param of [PARAM.SWEEP, PARAM.BEND]) {
   equal(
     engine.hive_param_supported(VOICE.CYMBAL, param),
@@ -300,8 +301,8 @@ for (const param of [PARAM.NOISE_PITCH, PARAM.NOISE_BODY]) {
   );
   equal(
     engine.hive_param_supported(VOICE.CYMBAL, param),
-    0,
-    `the Cymbal has no ${param}`,
+    1,
+    `the Cymbal supports the ${param}`,
   );
 }
 

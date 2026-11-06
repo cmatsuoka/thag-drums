@@ -316,7 +316,7 @@ try {
   /* The panel: the five drum modules, the hi-hat, the cymbal and the
    * effects module at the end of the row. */
   await page.waitForFunction(
-    () => document.querySelectorAll('.strip .knob').length === 79,
+    () => document.querySelectorAll('.strip .knob').length === 81,
     undefined,
     { timeout: TIMEOUT },
   );
@@ -392,19 +392,20 @@ try {
     'the effects module has a display',
   );
 
-  /* The metallic module: the hi-hat, wired to the engine like the drums.
-   * It carries the controls the metallic voices have and nothing else:
-   * the Pitch and the Color of its noise filter, the Tone Pitch, the
-   * Decay, the Noise/Tone and the Bell, and no Bend or Sweep, which are
-   * fixed at zero on the Hi-hat. */
+  /* The metallic modules: the hi-hat and the cymbal, wired to the engine
+   * like the drums. Each carries the controls its own voice has and
+   * nothing else: the Pitch and the Color of its noise filter, the Tone
+   * Pitch, the Decay, the Noise/Tone and the Bell, plus the Bend and Sweep
+   * of the Cymbal. The Hi-hat has no Bend or Sweep, which are fixed at
+   * zero on it. */
   const METALLIC = {
     hihat: {
       knobs: ['noisePitch', 'tonePitch', 'noiseBody', 'decay', 'noiseTone', 'bellCymbal'],
       absent: ['sweep', 'bend', 'clickTone'],
     },
     cymbal: {
-      knobs: ['sweep', 'tonePitch', 'bend', 'decay', 'noiseTone', 'bellCymbal'],
-      absent: ['noisePitch', 'noiseBody', 'clickTone'],
+      knobs: ['sweep', 'tonePitch', 'noisePitch', 'noiseBody', 'bend', 'decay', 'noiseTone', 'bellCymbal'],
+      absent: ['clickTone'],
     },
   };
   for (const place of ['hihat', 'cymbal']) {
@@ -415,8 +416,8 @@ try {
     );
     equal(
       await page.locator(`.strip-${place} .strip-knobs .knob`).count(),
-      6,
-      `the ${place} module has the six sound knobs`,
+      METALLIC[place].knobs.length,
+      `the ${place} module has its sound knobs`,
     );
     for (const param of METALLIC[place].knobs) {
       equal(
@@ -547,13 +548,13 @@ try {
   await page.waitForTimeout(200);
   check((await readPeak(page)) > 0, 'the other voices play from the keyboard');
 
-  /* The hi-hats play from the keyboard: the closed one on J and the open
-   * one on L. The cymbal has no plate and no key. */
-  for (const key of ['j', 'l']) {
+  /* The metallic voices play from the keyboard: the closed hi-hat on J,
+   * the open one on L and the cymbal on P. */
+  for (const key of ['j', 'l', 'p']) {
     await page.keyboard.press(key);
   }
   await page.waitForTimeout(200);
-  check((await readPeak(page)) > 0, 'the hi-hats play from the keyboard');
+  check((await readPeak(page)) > 0, 'the metallic voices play from the keyboard');
 
   /* The hi-hat has two instruments and one lamp: the closed one and the
    * open one light the same lamp. */

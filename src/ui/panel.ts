@@ -635,6 +635,11 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
         continue;
       }
 
+      /* The compact knobs of a module stand together in a little grid at
+       * the top of the column, so a voice with more controls than the
+       * common six keeps the height of the plate. */
+      let cluster: HTMLElement | null = null;
+
       for (const spec of MODULES[voice].soundKnobs) {
         const index = paramIndex(spec.param);
         const entry = findInfo(info, voice, index);
@@ -649,7 +654,17 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
           max: fromQ16(entry.max),
           default: fromQ16(entry.default),
         });
-        strip.knobColumn.append(widget.cell);
+        if (spec.compact === true) {
+          if (cluster === null) {
+            cluster = document.createElement('div');
+            cluster.className = 'strip-knob-cluster';
+            strip.knobColumn.append(cluster);
+          }
+          cluster.append(widget.cell);
+        } else {
+          cluster = null;
+          strip.knobColumn.append(widget.cell);
+        }
         strip.knobs.push(widget);
       }
 

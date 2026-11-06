@@ -393,13 +393,46 @@ body {
   margin-bottom: 26px;
 }
 
-/* the knob column */
+/* the knob column. It is as wide as the compact cluster of a metallic
+ * module, so the mixer column and the buttons stand in the same place on
+ * every plate: the sound knobs take the left of the plate and the mixer
+ * its right. */
 .strip-knobs {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 7px;
   margin-top: 2px;
+  min-width: 87px;
+}
+
+/* A module with more controls than the common six keeps its height by
+ * standing some of them together in a compact grid at the top of the
+ * column. The small knobs read as a cluster of their own. */
+.strip-knob-cluster {
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  gap: 4px 12px;
+  justify-items: center;
+  /* The rows follow the small mixer knobs, and the padding keeps the
+   * cluster as tall as the two large knob rows it replaces, so the four
+   * large knobs of the Cymbal stay on the lines of the last four knobs of
+   * the other modules. */
+  padding-bottom: 23px;
+}
+
+.strip-knob-cluster .knob-cell {
+  min-height: 49px;
+  justify-content: flex-start;
+}
+
+.strip-knob-cluster .knob {
+  width: 28px;
+  height: 28px;
+}
+
+.strip-knob-cluster .knob-label {
+  font-size: 14px;
 }
 
 /* The mixer of the channel and the buttons of the module stand in one

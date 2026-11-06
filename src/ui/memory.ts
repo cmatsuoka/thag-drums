@@ -45,7 +45,7 @@ export const MEMORY_POSITIONS = 4;
  * the shape of the data, is a change of what the store holds, and the
  * tones of an earlier version would shadow them.
  */
-const STORAGE_KEY = 'thagomizer.memory.v6';
+const STORAGE_KEY = 'thagomizer.memory.v7';
 
 /** The keys of the memories of the earlier versions, if they are still
  * there. */
@@ -54,10 +54,12 @@ const OLD_STORAGE_KEYS = [
   'thagomizer.memory.v2',
   'thagomizer.memory.v3',
   'thagomizer.memory.v4',
+  'thagomizer.memory.v5',
+  'thagomizer.memory.v6',
 ];
 
 /** The shape of the stored data. A change of shape changes the key. */
-const STORAGE_VERSION = 6;
+const STORAGE_VERSION = 7;
 
 /**
  * The tones of the Kick that are not the factory value of the engine.
