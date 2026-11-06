@@ -226,6 +226,46 @@ const TOM3_TONES: Readonly<
 };
 
 /**
+ * The tones of the Hi-hat that are not the factory value of the engine.
+ */
+const HIHAT_TONES: Readonly<
+  Record<number, ReadonlyArray<readonly [SoundParam, number]>>
+> = {
+  1: [
+    ['noisePitch', 12105],
+    ['tonePitch', 1.0],
+    ['noiseBody', 3000],
+    ['decay', 0.19],
+    ['noiseTone', 0.15],
+    ['bellCymbal', 0.12],
+  ],
+  2: [
+    ['noisePitch', 10000],
+    ['tonePitch', 0],
+    ['noiseBody', 715],
+    ['decay', 0.23],
+    ['noiseTone', 0.8],
+    ['bellCymbal', 0.5],
+  ],
+  3: [
+    ['noisePitch', 9042],
+    ['tonePitch', 0.79],
+    ['noiseBody', 1532],
+    ['decay', 0.3],
+    ['noiseTone', 0.18],
+    ['bellCymbal', 0.18],
+  ],
+  4: [
+    ['noisePitch', 5179],
+    ['tonePitch', 1],
+    ['noiseBody', 730],
+    ['decay', 0.4],
+    ['noiseTone', 0],
+    ['bellCymbal', 0],
+  ],
+};
+
+/**
  * The tones of the Snare that are not the factory value of the engine.
  *
  * Every position of the Snare is a tone of its own: the Noise, the Tone,
@@ -392,6 +432,8 @@ export function createMemoryStore(
         ? TOM2_TONES[position]
         : voice === 'tom3'
         ? TOM3_TONES[position]
+        : voice === 'hihat'
+        ? HIHAT_TONES[position]
         : undefined;
     if (tone !== undefined) {
       for (const [param, value] of tone) {
