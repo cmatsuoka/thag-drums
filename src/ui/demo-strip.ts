@@ -61,9 +61,12 @@ export function createDemoStrip(
     'aria-label',
     'reset the whole machine: the engine, the memories of every module and the effects',
   );
-  resetButton.addEventListener('click', () => {
-    options.onReset();
-  });
+   resetButton.addEventListener('click', () => {
+     if (window.confirm('Are you sure you want to reset the whole machine? This will wipe all current settings.')) {
+       options.onReset();
+     }
+   });
+
 
   const midiButton = document.createElement('button');
   midiButton.type = 'button';
