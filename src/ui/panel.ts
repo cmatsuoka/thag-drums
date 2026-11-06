@@ -821,8 +821,8 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
      *
      * The engine takes its factory values, every memory position of every
      * module goes back to its built-in values, and the effects of the kit
-     * go back to the factory values of the bus. The position that is
-     * selected stays the selected one.
+     * go back to the factory values of the bus. The first memory position
+     * is selected again for every module.
      */
     reset(): void {
       engine.reset();
@@ -831,6 +831,7 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
       if (store !== null) {
         store.resetAll();
         for (const voice of PANEL_ORDER) {
+          updateMemoryButtons(voice);
           engine.setTone(voice, Array.from(store.values(voice)));
         }
       }

@@ -607,6 +607,7 @@ export function createMemoryStore(
 
     resetAll(): void {
       for (const [voice, memory] of memories) {
+        memory.selected = 1;
         for (let position = 1; position <= MEMORY_POSITIONS; position += 1) {
           memory.positions[position - 1] = builtIn(voice, position);
         }
