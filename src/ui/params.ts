@@ -69,7 +69,7 @@ export const PARAM_SPECS: Readonly<Record<Param, ParamSpec>> = {
     fineStep: 0.002,
   },
   noiseTone: {
-    label: 'noise/tone',
+    label: 'n/t',
     unit: '',
     taper: 'linear',
     decimals: 2,
@@ -229,7 +229,7 @@ export interface KnobSpec {
 
 /**
  * The long knob column of a module strip, in the order of the hardware:
- * Noise, Tone, Bend, Decay, Noise/Tone and Click.
+ * Noise, Tone, Bend, Decay, Blend and Click.
  *
  * The strip is built from this list and from the engine's own table: a
  * knob the engine does not support is not on the panel.
@@ -249,7 +249,7 @@ export const STRIP_KNOBS: readonly KnobSpec[] = [
  *
  * The Cymbal carries the Sweep, the contour of the noise filter, the Tone
  * Pitch that scales the bank of the oscillators, the Bend that sweeps that
- * bank, the Decay, the release of the envelope, the Noise/Tone and the
+ * bank, the Decay, the release of the envelope, the Blend and the
  * Bell/Cymbal.
  */
 export const METALLIC_KNOBS: readonly KnobSpec[] = [
@@ -267,7 +267,7 @@ export const METALLIC_KNOBS: readonly KnobSpec[] = [
  *
  * The Hi-hat carries the Pitch and the Color, the two edges of its noise
  * filter, the Tone Pitch that scales the bank of the oscillators, the
- * Decay, the release of the envelope, the Noise/Tone and the Bell. Its
+ * Decay, the release of the envelope, the Blend and the Bell. Its
  * Bend and Sweep are fixed at zero in the engine, so they have no knob.
  */
 export const HIHAT_KNOBS: readonly KnobSpec[] = [

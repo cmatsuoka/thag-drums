@@ -4,8 +4,10 @@
   --accent: #8c1c13;
   --focus: #1a63c4;
 
-  /* the faceplate of the console */
-  --plate-width: 1164px;
+  /* The faceplate of the console. The width is the row of eight plates
+   * (the five drums, the hi-hat, the cymbal and the effects module) at
+   * 160px each, plus the rim of the case. */
+  --plate-width: 1311px;
   --plate-edge: #71767a;
   --plate-hi: #e9eced;
   --plate-mid: #dadde0;

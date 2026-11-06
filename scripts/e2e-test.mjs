@@ -24,9 +24,10 @@ const TIMEOUT = 20000;
 /* The order of the engine's own tables. */
 const VOICES = ['kick', 'snare', 'tom1', 'tom2', 'tom3', 'cymbal', 'hihat'];
 
-/* The voices that have a plate of their own on the panel: the cymbal has
- * none for now, and the effects module is no voice of the engine. */
-const PLATED_VOICES = ['kick', 'snare', 'tom1', 'tom2', 'tom3', 'hihat'];
+/* The voices that have a plate of their own on the panel: the five drums
+ * and the two metallic voices. The effects module is no voice of the
+ * engine. */
+const PLATED_VOICES = ['kick', 'snare', 'tom1', 'tom2', 'tom3', 'hihat', 'cymbal'];
 const PARAMS = [
   'noisePitch',
   'tonePitch',
@@ -312,17 +313,17 @@ try {
     `the engine reports its version (${(status ?? '').trim()})`,
   );
 
-  /* The panel: the five drum modules, the hi-hat and the effects module
-   * at the end of the row. The cymbal has no plate of its own for now. */
+  /* The panel: the five drum modules, the hi-hat, the cymbal and the
+   * effects module at the end of the row. */
   await page.waitForFunction(
-    () => document.querySelectorAll('.strip .knob').length === 69,
+    () => document.querySelectorAll('.strip .knob').length === 79,
     undefined,
     { timeout: TIMEOUT },
   );
   equal(
     await page.locator('.strip').count(),
-    7,
-    'the panel has the seven modules',
+    8,
+    'the panel has the eight modules',
   );
   equal(
     await page.locator('.strip-blank').count(),
@@ -331,7 +332,7 @@ try {
   );
   equal(
     await page.locator('.strip .lamp').count(),
-    6,
+    7,
     'every voice module draws its lamp',
   );
 
@@ -396,7 +397,17 @@ try {
    * the Pitch and the Color of its noise filter, the Tone Pitch, the
    * Decay, the Noise/Tone and the Bell, and no Bend or Sweep, which are
    * fixed at zero on the Hi-hat. */
-  for (const place of ['hihat']) {
+  const METALLIC = {
+    hihat: {
+      knobs: ['noisePitch', 'tonePitch', 'noiseBody', 'decay', 'noiseTone', 'bellCymbal'],
+      absent: ['sweep', 'bend', 'clickTone'],
+    },
+    cymbal: {
+      knobs: ['sweep', 'tonePitch', 'bend', 'decay', 'noiseTone', 'bellCymbal'],
+      absent: ['noisePitch', 'noiseBody', 'clickTone'],
+    },
+  };
+  for (const place of ['hihat', 'cymbal']) {
     equal(
       await page.locator(`.strip-${place}`).count(),
       1,
@@ -407,14 +418,14 @@ try {
       6,
       `the ${place} module has the six sound knobs`,
     );
-    for (const param of ['noisePitch', 'tonePitch', 'noiseBody', 'decay', 'noiseTone', 'bellCymbal']) {
+    for (const param of METALLIC[place].knobs) {
       equal(
         await page.locator(`.strip-${place} .knob[data-param="${param}"]`).count(),
         1,
         `the ${place} module has a ${param} knob`,
       );
     }
-    for (const param of ['sweep', 'bend', 'clickTone']) {
+    for (const param of METALLIC[place].absent) {
       equal(
         await page.locator(`.strip-${place} .knob[data-param="${param}"]`).count(),
         0,
@@ -463,9 +474,10 @@ try {
   }
 
   /* No module carries a control the engine does not support: the Snare has
-   * no sweep knob any more, and every voice has a Pan knob. */
+   * no sweep knob any more, and every voice has a Pan knob. The metallic
+   * voices carry a sweep of their own only when the engine has one. */
   for (const voice of PLATED_VOICES) {
-    if (voice === 'hihat') {
+    if (voice === 'hihat' || voice === 'cymbal') {
       continue;
     }
     equal(

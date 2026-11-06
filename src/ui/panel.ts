@@ -56,9 +56,10 @@ import { printedWord } from './wordmark';
  * sound knobs — and not the mixer of the channel: the mixer belongs to the
  * module and keeps the values the user has set.
  *
- * The hi-hat module stands at the end of the row, and the effects module
- * after it: the hi-hat is the metallic voice of the engine, and the
- * effects module carries the controls of the engine's shared FX bus.
+ * The hi-hat module and the cymbal module stand at the end of the row, and
+ * the effects module after them: the two metallic voices of the engine
+ * come first, and the effects module carries the controls of the engine's
+ * shared FX bus.
  */
 
 export interface Panel {
@@ -104,12 +105,8 @@ interface ModuleDescriptor {
 }
 
 /**
- * The order of the modules on the panel: the five drums, the hi-hat and
- * the effects module at the end of the row.
- *
- * The Cymbal has no plate of its own for now: the engine still has the
- * voice, and it is still played from the keyboard and from a MIDI
- * controller, but the panel carries no faceplate for it.
+ * The order of the modules on the panel: the five drums, the two metallic
+ * voices and the effects module at the end of the row.
  */
 const PANEL_ORDER: readonly Voice[] = [
   'kick',
@@ -118,6 +115,7 @@ const PANEL_ORDER: readonly Voice[] = [
   'tom2',
   'tom3',
   'hihat',
+  'cymbal',
 ];
 
 /**
