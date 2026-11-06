@@ -14,6 +14,8 @@ export interface DemoStripOptions {
   readonly onReset: () => void;
   /** The MIDI button was pressed. */
   readonly onMidiConnect: () => void;
+  /** The selected MIDI input changed; null means every input. */
+  readonly onMidiSelect: (id: string | null) => void;
 }
 
 export interface DemoStrip {
@@ -77,11 +79,21 @@ export function createDemoStrip(
     options.onMidiConnect();
   });
 
+  const midiSelect = document.createElement('select');
+  midiSelect.className = 'demo-select';
+  midiSelect.id = 'midi-input';
+  midiSelect.setAttribute('aria-label', 'MIDI input');
+  midiSelect.hidden = true;
+  midiSelect.addEventListener('change', () => {
+    const value = midiSelect.value;
+    options.onMidiSelect(value === '' ? null : value);
+  });
+
   const midiStatus = document.createElement('span');
   midiStatus.className = 'demo-midi-status';
   midiStatus.id = 'midi-status';
 
-  actions.append(resetButton, midiButton, midiStatus);
+  actions.append(resetButton, midiButton, midiSelect, midiStatus);
   strip.append(actions);
 
   host.append(strip);
@@ -105,10 +117,36 @@ export function createDemoStrip(
 
   return {
     setMidiDevices(devices: readonly MidiDevice[]): void {
+      const previous = midiSelect.value;
+      const stillThere = devices.some((device) => device.id === previous);
+
+      midiSelect.replaceChildren();
+
+      const all = document.createElement('option');
+      all.value = '';
+      all.textContent = 'All MIDI inputs';
+      midiSelect.append(all);
+
+      for (const device of devices) {
+        const option = document.createElement('option');
+        option.value = device.id;
+        option.textContent = device.name;
+        midiSelect.append(option);
+      }
+
+      midiSelect.value = previous !== '' && stillThere ? previous : '';
+      midiSelect.hidden = devices.length === 0;
+
+      if (previous !== '' && !stillThere) {
+        options.onMidiSelect(null);
+      }
+
       midiStatus.textContent =
         devices.length === 0
           ? 'no MIDI input connected'
-          : devices.map((device) => device.name).join(', ');
+          : devices.length === 1
+            ? '1 MIDI input available'
+            : `${devices.length} MIDI inputs available`;
     },
 
     showError(message: string): void {

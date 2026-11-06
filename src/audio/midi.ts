@@ -53,9 +53,25 @@ export class MidiInput {
   private access: WebMidi.MIDIAccess | null = null;
   private readonly handlers: MidiHandlers;
   private readonly attached = new Map<string, WebMidi.MIDIInput>();
+  private selectedId: string | null = null;
 
   constructor(handlers: MidiHandlers) {
     this.handlers = handlers;
+  }
+
+  /** The input the demo listens to, or null when it listens to all of them. */
+  get selected(): string | null {
+    return this.selectedId;
+  }
+
+  /**
+   * Listen to one input, or to every connected input when id is null.
+   * A selection that is not connected right now is kept: the input is
+   * picked up again when it comes back.
+   */
+  select(id: string | null): void {
+    this.selectedId = id;
+    this.listen();
   }
 
   /** Whether this browser has Web MIDI at all. */
@@ -120,7 +136,21 @@ export class MidiInput {
       return;
     }
 
+    const selected = this.selectedId;
+
+    for (const [id, input] of this.attached) {
+      const wanted =
+        selected === null || id === selected ? access.inputs.has(id) : false;
+      if (!wanted) {
+        input.onmidimessage = null;
+        this.attached.delete(id);
+      }
+    }
+
     for (const [id, input] of access.inputs) {
+      if (selected !== null && id !== selected) {
+        continue;
+      }
       if (this.attached.has(id)) {
         continue;
       }

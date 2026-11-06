@@ -61,6 +61,9 @@ demo = createDemoStrip(app, engine, {
   onMidiConnect: () => {
     void midi.connect();
   },
+  onMidiSelect: (id) => {
+    midi.select(id);
+  },
 });
 
 engine.onError((message) => {
