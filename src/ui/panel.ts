@@ -17,10 +17,6 @@ import {
   type Voice,
 } from '../audio/protocol';
 import { fromQ16, toQ16 } from '../audio/units';
-import {
-  buildModuleExport,
-  downloadModuleExport,
-} from './export';
 import { createFitter, type Fitter } from './fit';
 import { createChannelStore, type ChannelStore } from './channel';
 import { createFxModule } from './fx';
@@ -88,8 +84,6 @@ interface StripWidgets {
   readonly knobs: KnobWidget[];
   /** The buttons of the memory positions of the module. */
   readonly memoryButtons: HTMLButtonElement[];
-  /** The control that writes the settings of the module to a file. */
-  readonly exportButton: HTMLButtonElement;
   /** The control that puts the knobs of the module back to their defaults. */
   readonly resetButton: HTMLButtonElement;
   /** The cell of the effects knob of the module. */
@@ -373,35 +367,12 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
     element.append(head, body, mark);
     plateRow.append(element);
 
-    /* The export control: it writes the settings the engine holds for
-     * this module to a JSON file. It is a demo's own addition and not a
-     * control of the hardware, so it stands on the rail of the case, under
-     * the module it belongs to. */
-    const exportButton = document.createElement('button');
-    exportButton.type = 'button';
-    exportButton.className = 'strip-export';
-    exportButton.dataset.voice = voice;
-    exportButton.textContent = 'export';
-    exportButton.setAttribute(
-      'aria-label',
-      `export the settings of the ${name.spoken} module`,
-    );
-    exportButton.addEventListener('click', () => {
-      exportVoice(voice);
-    });
-
-    const railCell = document.createElement('div');
-    railCell.className = 'faceplate-rail-cell';
-    railCell.append(exportButton);
-    rail.append(railCell);
-
     strips.set(voice, {
       triggerLamp,
       knobColumn,
       mixColumn,
       knobs: [],
       memoryButtons,
-      exportButton,
       resetButton,
       fxCell,
     });
@@ -419,13 +390,6 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
     fxStore?.write(param, raw);
   });
   plateRow.append(fx.element);
-
-  /* The rail of the case carries a cell for every plate, so that a
-   * control on the rail stands under the module it belongs to. The
-   * effects module has nothing to export: the FX bus is not a voice. */
-  const fxRailCell = document.createElement('div');
-  fxRailCell.className = 'faceplate-rail-cell';
-  rail.append(fxRailCell);
 
   faceplate.append(plateRow, rail);
   fitHost.append(faceplate);
@@ -593,29 +557,9 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
 
   let built = false;
 
-  /* The last state the engine reported, and the controls it supports on
-   * every voice: the export reads the settings from them. */
+  /* The last state the engine reported, so that the panel shows it as
+   * soon as the modules are built. */
   let lastState: EngineState | null = null;
-  const supportedParams = new Map<Voice, Param[]>();
-
-  /**
-   * Write the settings of a module to a JSON file.
-   *
-   * The values are the ones the engine holds, read from its own snapshot,
-   * and only the controls the engine supports on that voice go into the
-   * file.
-   */
-  const exportVoice = (voice: Voice): void => {
-    const state = lastState;
-    if (state === null) {
-      return;
-    }
-    const supported = supportedParams.get(voice) ?? [];
-    downloadModuleExport(
-      voice,
-      buildModuleExport(voice, state, supported),
-    );
-  };
 
   /**
    * Build one knob of a strip.
@@ -693,10 +637,6 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
         continue;
       }
 
-      /* The controls the engine supports on this voice: the export writes
-       * these and nothing else. */
-      const supported: Param[] = [];
-
       for (const spec of MODULES[voice].soundKnobs) {
         const index = paramIndex(spec.param);
         const entry = findInfo(info, voice, index);
@@ -713,7 +653,6 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
         });
         strip.knobColumn.append(widget.cell);
         strip.knobs.push(widget);
-        supported.push(spec.param);
       }
 
       /* The mixer of the channel, in its own shorter column. */
@@ -733,7 +672,6 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
         const widget = createWidget(voice, spec, range);
         strip.mixColumn.append(widget.cell);
         strip.knobs.push(widget);
-        supported.push(spec.param);
       }
 
       /* The effects send of the module: the share of the module that goes
@@ -759,10 +697,8 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
         widget.cell.classList.add('strip-fx');
         strip.fxCell.append(widget.cell);
         strip.knobs.push(widget);
-        supported.push('fxSend');
       }
 
-      supportedParams.set(voice, supported);
     }
 
     fitter.update();
