@@ -106,6 +106,126 @@ const KICK_TONES: Readonly<
 };
 
 /**
+ * The tones of the Tom 1 that are not the factory value of the engine.
+ */
+const TOM1_TONES: Readonly<
+  Record<number, ReadonlyArray<readonly [SoundParam, number]>>
+> = {
+  1: [
+    ['noisePitch', 8377],
+    ['tonePitch', 150],
+    ['bend', 24],
+    ['decay', 0.7],
+    ['noiseTone', 0.65],
+    ['clickTone', 0.75],
+  ],
+  2: [
+    ['noisePitch', 3722],
+    ['tonePitch', 174],
+    ['bend', 9.3],
+    ['decay', 0.7],
+    ['noiseTone', 0.93],
+    ['clickTone', 0.5],
+  ],
+  3: [
+    ['noisePitch', 16000],
+    ['tonePitch', 266],
+    ['bend', 0],
+    ['decay', 0.27],
+    ['noiseTone', 0.9],
+    ['clickTone', 0.8],
+  ],
+  4: [
+    ['noisePitch', 16000],
+    ['tonePitch', 118],
+    ['bend', 45],
+    ['decay', 2.47],
+    ['noiseTone', 0.85],
+    ['clickTone', 0.85],
+  ],
+};
+
+/**
+ * The tones of the Tom 2 that are not the factory value of the engine.
+ */
+const TOM2_TONES: Readonly<
+  Record<number, ReadonlyArray<readonly [SoundParam, number]>>
+> = {
+  1: [
+    ['noisePitch', 8377],
+    ['tonePitch', 114],
+    ['bend', 24],
+    ['decay', 0.7],
+    ['noiseTone', 0.65],
+    ['clickTone', 0.75],
+  ],
+  2: [
+    ['noisePitch', 3722],
+    ['tonePitch', 126],
+    ['bend', 9.3],
+    ['decay', 0.7],
+    ['noiseTone', 0.93],
+    ['clickTone', 0.5],
+  ],
+  3: [
+    ['noisePitch', 16000],
+    ['tonePitch', 182],
+    ['bend', 0],
+    ['decay', 0.27],
+    ['noiseTone', 0.9],
+    ['clickTone', 0.8],
+  ],
+  4: [
+    ['noisePitch', 16000],
+    ['tonePitch', 73],
+    ['bend', 45],
+    ['decay', 2.22],
+    ['noiseTone', 0.85],
+    ['clickTone', 0.85],
+  ],
+};
+
+/**
+ * The tones of the Tom 3 that are not the factory value of the engine.
+ */
+const TOM3_TONES: Readonly<
+  Record<number, ReadonlyArray<readonly [SoundParam, number]>>
+> = {
+  1: [
+    ['noisePitch', 8377],
+    ['tonePitch', 71],
+    ['bend', 24],
+    ['decay', 0.7],
+    ['noiseTone', 0.65],
+    ['clickTone', 0.75],
+  ],
+  2: [
+    ['noisePitch', 3722],
+    ['tonePitch', 80],
+    ['bend', 9.3],
+    ['decay', 0.7],
+    ['noiseTone', 0.93],
+    ['clickTone', 0.5],
+  ],
+  3: [
+    ['noisePitch', 16000],
+    ['tonePitch', 126],
+    ['bend', 0],
+    ['decay', 0.33],
+    ['noiseTone', 0.9],
+    ['clickTone', 0.8],
+  ],
+  4: [
+    ['noisePitch', 16000],
+    ['tonePitch', 56],
+    ['bend', 45],
+    ['decay', 2.09],
+    ['noiseTone', 0.85],
+    ['clickTone', 0.85],
+  ],
+};
+
+/**
  * The tones of the Snare that are not the factory value of the engine.
  *
  * Every position of the Snare is a tone of its own: the Noise, the Tone,
@@ -261,7 +381,18 @@ export function createMemoryStore(
     }
     values.set(table.values);
 
-    const tone = voice === 'snare' ? SNARE_TONES[position] : voice === 'kick' ? KICK_TONES[position] : undefined;
+    const tone =
+      voice === 'snare'
+        ? SNARE_TONES[position]
+        : voice === 'kick'
+        ? KICK_TONES[position]
+        : voice === 'tom1'
+        ? TOM1_TONES[position]
+        : voice === 'tom2'
+        ? TOM2_TONES[position]
+        : voice === 'tom3'
+        ? TOM3_TONES[position]
+        : undefined;
     if (tone !== undefined) {
       for (const [param, value] of tone) {
         const slot = SOUND_PARAMS.indexOf(param);
