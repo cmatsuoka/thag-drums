@@ -227,17 +227,17 @@ export const STRIP_KNOBS: readonly KnobSpec[] = [
  * The long knob column of the Cymbal, in the order of the engine's own
  * parameters.
  *
- * The Cymbal carries the Sweep, the contour of the noise filter, the Tone
- * Pitch that scales the bank of the oscillators, the Pitch and Color that
- * shape the noise filter, the Bend that sweeps that bank, the Decay, the
+ * The Cymbal carries the Pitch and Color that shape the noise filter, the
+ * Tone Pitch that scales the bank of the oscillators, the Sweep, the
+ * contour of that filter, the Bend that sweeps the bank, the Decay, the
  * release of the envelope, the Noise/Tone and the Bell. The first four
  * stand in a compact cluster of small knobs, at the top of the column.
  */
 export const METALLIC_KNOBS: readonly KnobSpec[] = [
-  { kind: 'param', param: 'sweep', compact: true },
-  { kind: 'param', param: 'tonePitch', compact: true },
   { kind: 'param', param: 'noisePitch', compact: true },
+  { kind: 'param', param: 'tonePitch', compact: true },
   { kind: 'param', param: 'noiseBody', compact: true },
+  { kind: 'param', param: 'sweep', compact: true },
   { kind: 'param', param: 'bend' },
   { kind: 'param', param: 'decay' },
   { kind: 'param', param: 'noiseTone' },
