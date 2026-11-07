@@ -221,13 +221,13 @@ const CYMBAL_TONES: Readonly<
   Record<number, ReadonlyArray<readonly [SoundParam, number]>>
 > = {
   1: [
-    ['noisePitch', 10000],
-    ['tonePitch', 0.55],
-    ['noiseBody', 2500],
-    ['sweep', 0],
+    ['noisePitch', 12000],
+    ['tonePitch', 0.88],
+    ['noiseBody', 3000],
+    ['sweep', 0.3],
     ['bend', 0],
-    ['decay', 2.5],
-    ['noiseTone', 0.1],
+    ['decay', 2.3],
+    ['noiseTone', 0.3],
     ['bellCymbal', 0],
   ],
   2: [
@@ -248,7 +248,7 @@ const CYMBAL_TONES: Readonly<
     ['bend', -41.8],
     ['decay', 2.6],
     ['noiseTone', 0.4],
-    ['bellCymbal', 0.33],
+    ['bellCymbal', 0.04],
   ],
   4: [
     ['noisePitch', 12000],
