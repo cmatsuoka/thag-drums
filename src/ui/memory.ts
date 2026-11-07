@@ -11,7 +11,6 @@ import { toQ16 } from '../audio/units';
 import {
   createDebouncedWriter,
   readJson,
-  removeKey,
   type DebouncedWriter,
 } from './storage';
 
@@ -41,25 +40,13 @@ export const MEMORY_POSITIONS = 4;
 /**
  * The key the memories of the kit are kept under.
  *
- * The version is part of the key: a change of the built-in tones, or of
- * the shape of the data, is a change of what the store holds, and the
- * tones of an earlier version would shadow them.
+ * The version is part of the key. While the project is pre-release the
+ * key stays at v1: the built-in tones may change without a migration.
  */
-const STORAGE_KEY = 'thagomizer.memory.v7';
+const STORAGE_KEY = 'thagomizer.memory.v1';
 
-/** The keys of the memories of the earlier versions, if they are still
- * there. */
-const OLD_STORAGE_KEYS = [
-  'thagomizer.memory.v1',
-  'thagomizer.memory.v2',
-  'thagomizer.memory.v3',
-  'thagomizer.memory.v4',
-  'thagomizer.memory.v5',
-  'thagomizer.memory.v6',
-];
-
-/** The shape of the stored data. A change of shape changes the key. */
-const STORAGE_VERSION = 7;
+/** The shape of the stored data. */
+const STORAGE_VERSION = 1;
 
 /**
  * The tones of the Kick that are not the factory value of the engine.
@@ -228,6 +215,54 @@ const TOM3_TONES: Readonly<
 };
 
 /**
+ * The tones of the Cymbal that are not the factory value of the engine.
+ */
+const CYMBAL_TONES: Readonly<
+  Record<number, ReadonlyArray<readonly [SoundParam, number]>>
+> = {
+  1: [
+    ['noisePitch', 10000],
+    ['tonePitch', 0.55],
+    ['noiseBody', 2500],
+    ['sweep', 0],
+    ['bend', 0],
+    ['decay', 2.5],
+    ['noiseTone', 0.1],
+    ['bellCymbal', 0],
+  ],
+  2: [
+    ['noisePitch', 5292],
+    ['tonePitch', 0.5],
+    ['noiseBody', 50],
+    ['sweep', 0.85],
+    ['bend', 0],
+    ['decay', 3],
+    ['noiseTone', 0.18],
+    ['bellCymbal', 0.18],
+  ],
+  3: [
+    ['noisePitch', 11380],
+    ['tonePitch', 0.9],
+    ['noiseBody', 706],
+    ['sweep', 0],
+    ['bend', -41.8],
+    ['decay', 2.6],
+    ['noiseTone', 0.4],
+    ['bellCymbal', 0.33],
+  ],
+  4: [
+    ['noisePitch', 12000],
+    ['tonePitch', 1.0],
+    ['noiseBody', 800],
+    ['sweep', 0],
+    ['bend', 0],
+    ['decay', 1.25],
+    ['noiseTone', 0.4],
+    ['bellCymbal', 0.5],
+  ],
+};
+
+/**
  * The tones of the Hi-hat that are not the factory value of the engine.
  */
 const HIHAT_TONES: Readonly<
@@ -235,11 +270,11 @@ const HIHAT_TONES: Readonly<
 > = {
   1: [
     ['noisePitch', 12105],
-    ['tonePitch', 1.0],
+    ['tonePitch', 0.95],
     ['noiseBody', 3000],
     ['decay', 0.19],
     ['noiseTone', 0.15],
-    ['bellCymbal', 0.12],
+    ['bellCymbal', 0.02],
   ],
   2: [
     ['noisePitch', 10000],
@@ -292,7 +327,7 @@ const SNARE_TONES: Readonly<
     ['tonePitch', 92],
     ['bend', 8.5],
     ['decay', 0.53],
-    ['noiseTone', 0.77],
+    ['noiseTone', 0.33],
     ['clickTone', 0.3],
   ],
   3: [
@@ -376,8 +411,8 @@ function clamp(value: number, min: number, max: number): number {
  *
  * The built-in tone of every position comes from the engine's own
  * parameter table: the factory value of every sound parameter the engine
- * supports on the voice. The Snare is the exception, and its positions
- * carry the tones of their own.
+ * supports on the voice. The modules with tones of their own (the Kick,
+ * the Snare, the Toms, the Cymbal and the Hi-hat) override those values.
  *
  * What the browser kept from an earlier visit is read afterwards: a
  * position that was saved keeps its tone, and a position that was never
@@ -436,6 +471,8 @@ export function createMemoryStore(
         ? TOM3_TONES[position]
         : voice === 'hihat'
         ? HIHAT_TONES[position]
+        : voice === 'cymbal'
+        ? CYMBAL_TONES[position]
         : undefined;
     if (tone !== undefined) {
       for (const [param, value] of tone) {
@@ -459,13 +496,6 @@ export function createMemoryStore(
       positions.push(builtIn(voice, position));
     }
     memories.set(voice, { selected: 1, positions });
-  }
-
-  /* The memories of an earlier version of the data are not read any
-   * more: they are forgotten, so the built-in tones of this version are
-   * the ones the kit starts from. */
-  for (const key of OLD_STORAGE_KEYS) {
-    removeKey(key);
   }
 
   /* What the browser kept from an earlier visit. */

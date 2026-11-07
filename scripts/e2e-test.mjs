@@ -404,7 +404,7 @@ try {
       absent: ['sweep', 'bend', 'clickTone'],
     },
     cymbal: {
-      knobs: ['sweep', 'tonePitch', 'noisePitch', 'noiseBody', 'bend', 'decay', 'noiseTone', 'bellCymbal'],
+      knobs: ['noisePitch', 'tonePitch', 'noiseBody', 'sweep', 'bend', 'decay', 'noiseTone', 'bellCymbal'],
       absent: ['clickTone'],
     },
   };
