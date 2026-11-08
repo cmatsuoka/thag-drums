@@ -6,9 +6,9 @@
 # into LIBHIVE_DIR, where they are compiled. The source tree is never written
 # to: it may be a checkout that belongs to somebody else.
 #
-# The source is the sibling checkout of the library when there is one
-# (../sdsv), because it carries the newest API. Otherwise the pinned commit
-# is fetched into vendor/libhive-src. Update LIBHIVE_COMMIT deliberately.
+# The source is the pinned commit, fetched into vendor/libhive-src unless
+# LIBHIVE_SOURCE points at another checkout. Update LIBHIVE_COMMIT
+# deliberately.
 #
 # The library is built with its own warning set, so the build fails when the
 # library drifts from its rules (C99, no floating point, no new warnings).
@@ -18,10 +18,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LIBHIVE_REPO="${LIBHIVE_REPO:-https://github.com/cmatsuoka/libhive.git}"
 LIBHIVE_COMMIT="${LIBHIVE_COMMIT:-0ca3a21895a95b612746071552be386a7b1a3ae0}"
-# The checkout of the library that carries the newest API.
-LIBHIVE_SIBLING="${LIBHIVE_SIBLING:-$ROOT/../sdsv}"
 # The pristine sources the build is made from.
-LIBHIVE_SOURCE="${LIBHIVE_SOURCE:-}"
+LIBHIVE_SOURCE="${LIBHIVE_SOURCE:-$ROOT/vendor/libhive-src}"
 # The sources the build actually compiles: a copy of the sources above.
 LIBHIVE_DIR="${LIBHIVE_DIR:-$ROOT/vendor/libhive}"
 EMCC="${EMCC:-emcc}"
@@ -41,16 +39,6 @@ EOF
 fi
 
 # Where the pristine sources come from.
-if [ -z "$LIBHIVE_SOURCE" ]; then
-    if [ -f "$LIBHIVE_SIBLING/include/h5.h" ]; then
-        # The sibling checkout is the working copy of the library, and it
-        # carries the API this panel is written against.
-        LIBHIVE_SOURCE="$LIBHIVE_SIBLING"
-    else
-        LIBHIVE_SOURCE="$ROOT/vendor/libhive-src"
-    fi
-fi
-
 if [ ! -f "$LIBHIVE_SOURCE/include/h5.h" ]; then
     # No local checkout: fetch the pinned commit.
     if [ ! -d "$LIBHIVE_SOURCE/.git" ]; then

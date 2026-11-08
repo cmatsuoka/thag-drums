@@ -21,8 +21,7 @@ deployed to [GitHub Pages](https://cmatsuoka.github.io/thag-drums).
 - Keyboard and web MIDI triggering.
 
 The engine is a one-shot sound generator: there are no presets, no sequencer,
-no note-off and no master effects. Everything outside the sound parameters is
-host-side.
+no note-off and no master effects.
 
 ## Requirements
 
@@ -38,9 +37,8 @@ npm run dev          # Vite dev server
 ```
 
 `vendor/libhive` is fetched into place by `scripts/build-wasm.sh` and is not
-committed. The pinned upstream commit is set in that script. A local checkout
-of the library in the sibling directory `../sdsv` is used instead when it is
-present; point `LIBHIVE_SOURCE` at another checkout to build that.
+committed. A pinned upstream commit is set in that script. Point
+`LIBHIVE_SOURCE` at a local checkout to build that instead.
 
 Use `npm run dev:secure` for an HTTPS dev server (self-signed certificate),
 needed to reach the page from another device, because the AudioWorklet only
