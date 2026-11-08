@@ -707,7 +707,6 @@ export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
             );
           },
         );
-        widget.cell.classList.add('strip-fx');
         strip.fxCell.append(widget.cell);
         strip.knobs.push(widget);
       }

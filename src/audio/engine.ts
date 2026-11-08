@@ -83,21 +83,6 @@ export class HiveEngine {
     return this.info;
   }
 
-  /** The engine's own FX bus table: the ranges and the defaults. */
-  get fxParamInfo(): FxParamInfo[] {
-    return this.fxInfo;
-  }
-
-  /** The rate the engine renders at. */
-  get sampleRate(): number {
-    return this.context?.sampleRate ?? 0;
-  }
-
-  /** Whether the audio graph is running. */
-  get running(): boolean {
-    return this.context?.state === 'running';
-  }
-
   onState(listener: (state: EngineState) => void): () => void {
     this.stateListeners.add(listener);
     return () => {

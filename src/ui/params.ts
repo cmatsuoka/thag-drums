@@ -151,10 +151,11 @@ export const PARAM_SPECS: Readonly<Record<Param, ParamSpec>> = {
 };
 
 /**
- * The voices of the metallic engine: the Cymbal and the Hi-hat.
+ * The metallic voices: the Cymbal and the Hi-hat.
  *
- * The metallic voices are built from another engine than the drums, and
- * two of their controls mean something else there.
+ * The Cymbal and the Hi-hat have engines of their own, separate from each
+ * other and from the drums, and some of their controls mean something
+ * else there.
  */
 export const METALLIC_VOICES: readonly Voice[] = ['cymbal', 'hihat'];
 
@@ -162,11 +163,14 @@ export const METALLIC_VOICES: readonly Voice[] = ['cymbal', 'hihat'];
  * The controls of the metallic voices, where they differ from the drum
  * voices.
  *
- * The Tone Pitch of a metallic voice scales the bank of its ten
- * oscillators: it is a factor between 0 and 1, not a frequency in Hz. The
- * Bend of a metallic voice sweeps that bank, in semitones, and the Sweep
- * is the contour of the noise filter, signed: a positive sweep closes the
- * filter as the sound dies, a negative one opens it.
+ * The Tone Pitch of a metallic voice is a factor between 0 and 1, not a
+ * frequency in Hz: on the Cymbal it sets the playback rates of the strike
+ * and the sampled loop, on the Hi-hat it scales the metallic bank. The
+ * Pitch and the Color are the low-pass cutoff and the high-pass corner of
+ * the noise filter. The Bend and the Sweep belong to the Cymbal: the Bend
+ * sweeps the playback rates, in semitones, and the Sweep is the signed
+ * contour of the wash low-pass: a positive sweep closes the filter as the
+ * sound dies, a negative one opens it.
  */
 export const METALLIC_PARAM_SPECS: Readonly<
   Partial<Record<Param, ParamSpec>>
@@ -228,10 +232,11 @@ export const STRIP_KNOBS: readonly KnobSpec[] = [
  * parameters.
  *
  * The Cymbal carries the Pitch and Color that shape the noise filter, the
- * Tone Pitch that scales the bank of the oscillators, the Sweep, the
- * contour of that filter, the Bend that sweeps the bank, the Decay, the
- * release of the envelope, the Noise/Tone and the Bell. The first four
- * stand in a compact cluster of small knobs, at the top of the column.
+ * Tone Pitch that sets the playback rates of its strike and its sampled
+ * loop, the Sweep, the contour of its wash low-pass, the Bend that sweeps
+ * those rates, the Decay, the release of the envelope, the Noise/Tone and
+ * the Bell. The first four stand in a compact cluster of small knobs, at
+ * the top of the column.
  */
 export const METALLIC_KNOBS: readonly KnobSpec[] = [
   { kind: 'param', param: 'noisePitch', compact: true },

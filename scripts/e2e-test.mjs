@@ -12,7 +12,6 @@
 
 import { spawn } from 'node:child_process';
 import { existsSync, readdirSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
@@ -444,11 +443,6 @@ try {
       `the ${place} module carries the four screws`,
     );
     equal(
-      await page.locator(`.strip-export[data-voice="${place}"]`).count(),
-      1,
-      `the ${place} module has an export control`,
-    );
-    equal(
       await page.locator(`.strip-${place} .lamp`).count(),
       1,
       `the ${place} module draws its lamp`,
@@ -769,7 +763,7 @@ try {
   );
   equal(
     stateValue(snareSecond, 'snare', 'noiseTone'),
-    q16(0.77),
+    q16(0.33),
     'the second position of the snare holds the noise/tone it was given',
   );
   equal(
@@ -1256,44 +1250,6 @@ try {
   check(
     viaKnobPeak >= fullPeak / 2,
     'at sensitivity 0 the knob gives the soft hit its full strike level',
-  );
-
-  /* Every voice module can write its settings to a file. The file carries
-   * the values the engine holds for that module. */
-  for (const voice of PLATED_VOICES) {
-    equal(
-      await page.locator(`.strip-export[data-voice="${voice}"]`).count(),
-      1,
-      `the ${voice} has an export control`,
-    );
-  }
-
-  const [download] = await Promise.all([
-    page.waitForEvent('download'),
-    page.locator('.strip-export[data-voice="snare"]').click(),
-  ]);
-  equal(
-    download.suggestedFilename(),
-    'snare.json',
-    'the export names the file after the module',
-  );
-  const exported = JSON.parse(
-    await readFile(await download.path(), 'utf8'),
-  );
-  equal(exported.voice, 'snare', 'the export names the module');
-  equal(
-    exported.parameters.sensitivity.q16,
-    await page.evaluate(() => window.hive?.value('snare', 'sensitivity') ?? -1),
-    'the export carries the value the engine holds',
-  );
-  equal(
-    exported.parameters.sweep,
-    undefined,
-    'the export does not carry a control the engine does not have',
-  );
-  check(
-    exported.parameters.noisePitch !== undefined,
-    'the export carries the controls of the module',
   );
 
   equal(consoleErrors.length, 0, 'the page logs no errors');

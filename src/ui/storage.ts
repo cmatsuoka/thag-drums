@@ -57,20 +57,6 @@ export function writeJson(key: string, value: unknown): void {
 }
 
 /**
- * Forget a value in the store of the browser.
- *
- * A key of an earlier version of the data is dropped this way: it is not
- * read any more, and it does not clutter the store of the browser.
- */
-export function removeKey(key: string): void {
-  try {
-    window.localStorage.removeItem(key);
-  } catch {
-    // No store, no permission: there is nothing to forget.
-  }
-}
-
-/**
  * A writer that waits for the value to settle before it writes it.
  */
 export interface DebouncedWriter {

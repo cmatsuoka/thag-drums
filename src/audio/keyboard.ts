@@ -16,18 +16,6 @@ export const KEY_MAP: Readonly<Record<string, Instrument>> = {
   p: 'cymbal',
 };
 
-/** The key of every instrument that has one, for the panel legend. */
-export const INSTRUMENT_KEYS: Readonly<Partial<Record<Instrument, string>>> = {
-  kick: 'S',
-  snare: 'D',
-  tom1: 'O',
-  tom2: 'I',
-  tom3: 'U',
-  hihatClosed: 'J',
-  hihatOpen: 'L',
-  cymbal: 'P',
-};
-
 function isTextField(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) {
     return false;

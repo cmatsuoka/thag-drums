@@ -349,7 +349,6 @@ class HiveProcessor extends AudioWorkletProcessor {
       }
     }
 
-    this.dirty = true;
     this.readState();
     this.postState();
   }

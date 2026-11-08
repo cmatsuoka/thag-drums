@@ -25,23 +25,3 @@ export function toQ16(value: number): number {
 export function fromQ16(value: number): number {
   return value / Q16_ONE;
 }
-
-/** A pitch in Hz. */
-export function hzToQ16(hz: number): number {
-  return toQ16(hz);
-}
-
-/** A decay time in seconds. */
-export function secondsToQ16(seconds: number): number {
-  return toQ16(seconds);
-}
-
-/** A bend in signed semitones. */
-export function semitonesToQ16(semitones: number): number {
-  return toQ16(semitones);
-}
-
-/** A balance between 0 and 1. */
-export function scaleToQ16(scale: number): number {
-  return toQ16(scale);
-}

@@ -306,23 +306,20 @@ for (const param of [PARAM.NOISE_PITCH, PARAM.NOISE_BODY]) {
   );
 }
 
-/* The Tone Pitch of a metallic voice scales the bank of its oscillators:
- * it is a factor between 0 and 1, not a frequency. */
+/* The Tone Pitch of a metallic voice is a factor between 0 and 1, not a
+ * frequency: it sets the Cymbal's playback rates and scales the Hi-hat's
+ * metallic bank. */
 const cymbalTone = paramInfo(infoPtr, VOICE.CYMBAL, PARAM.TONE_PITCH);
 equal(cymbalTone.min, 0, 'the Cymbal tone pitch starts at 0');
 equal(cymbalTone.max, Q16, 'the Cymbal tone pitch ends at 1');
 equal(cymbalTone.default, Q16, 'the Cymbal tone pitch defaults to 1');
 
-/* The Sweep of a metallic voice is the contour of its noise filter, and it
- * is signed: one side dull, the other bright. */
+/* The Sweep of the Cymbal is the contour of its wash low-pass, and it is
+ * signed: one side dull, the other bright. */
 const cymbalSweep = paramInfo(infoPtr, VOICE.CYMBAL, PARAM.SWEEP);
 equal(cymbalSweep.min, -Q16, 'the Cymbal sweep starts at -1');
 equal(cymbalSweep.max, Q16, 'the Cymbal sweep ends at 1');
-equal(
-  cymbalSweep.default,
-  Math.round((7 / 10) * Q16),
-  'the Cymbal sweep defaults to 0.7',
-);
+equal(cymbalSweep.default, 0, 'the Cymbal sweep defaults to 0');
 
 /* The two edges of the Hi-hat noise filter are named frequencies: the
  * Noise is the cutoff of the low-pass, the Noise Body the corner of the
