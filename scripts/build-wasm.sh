@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 #
-# Build the wasm glue from the local libhive checkout.
+# Fetch the engine and build the wasm glue.
 #
-# The library is not vendored and not fetched: it is compiled straight from
-# the sibling checkout. Point LIBHIVE_DIR at another one to build that.
+# The engine is libhive. Its sources are taken from LIBHIVE_SOURCE and copied
+# into LIBHIVE_DIR, where they are compiled. The source tree is never written
+# to: it may be a checkout that belongs to somebody else.
+#
+# The source is the sibling checkout of the library when there is one
+# (../sdsv), because it carries the newest API. Otherwise the pinned commit
+# is fetched into vendor/libhive-src. Update LIBHIVE_COMMIT deliberately.
 #
 # The library is built with its own warning set, so the build fails when the
 # library drifts from its rules (C99, no floating point, no new warnings).
@@ -11,7 +16,14 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-LIBHIVE_DIR="${LIBHIVE_DIR:-$ROOT/../sdsv}"
+LIBHIVE_REPO="${LIBHIVE_REPO:-https://github.com/cmatsuoka/libhive.git}"
+LIBHIVE_COMMIT="${LIBHIVE_COMMIT:-0ca3a21895a95b612746071552be386a7b1a3ae0}"
+# The checkout of the library that carries the newest API.
+LIBHIVE_SIBLING="${LIBHIVE_SIBLING:-$ROOT/../sdsv}"
+# The pristine sources the build is made from.
+LIBHIVE_SOURCE="${LIBHIVE_SOURCE:-}"
+# The sources the build actually compiles: a copy of the sources above.
+LIBHIVE_DIR="${LIBHIVE_DIR:-$ROOT/vendor/libhive}"
 EMCC="${EMCC:-emcc}"
 OUT_DIR="$ROOT/build"
 
@@ -28,14 +40,69 @@ EOF
     exit 1
 fi
 
-if [ ! -f "$LIBHIVE_DIR/include/h5.h" ]; then
-    cat >&2 <<EOF
-error: no libhive checkout at $LIBHIVE_DIR
+# Where the pristine sources come from.
+if [ -z "$LIBHIVE_SOURCE" ]; then
+    if [ -f "$LIBHIVE_SIBLING/include/h5.h" ]; then
+        # The sibling checkout is the working copy of the library, and it
+        # carries the API this panel is written against.
+        LIBHIVE_SOURCE="$LIBHIVE_SIBLING"
+    else
+        LIBHIVE_SOURCE="$ROOT/vendor/libhive-src"
+    fi
+fi
 
-The library is expected in the sibling checkout ../sdsv. Set LIBHIVE_DIR to
-the directory that holds include/h5.h and src/*.c.
+if [ ! -f "$LIBHIVE_SOURCE/include/h5.h" ]; then
+    # No local checkout: fetch the pinned commit.
+    if [ ! -d "$LIBHIVE_SOURCE/.git" ]; then
+        mkdir -p "$(dirname "$LIBHIVE_SOURCE")"
+        git clone "$LIBHIVE_REPO" "$LIBHIVE_SOURCE"
+    fi
+
+    if ! git -C "$LIBHIVE_SOURCE" fetch --depth 1 origin "$LIBHIVE_COMMIT"; then
+        cat >&2 <<EOF
+error: the pinned engine commit could not be fetched.
+
+  $LIBHIVE_COMMIT
+
+The commit has to be in the upstream repository:
+
+  git -C $LIBHIVE_SOURCE fetch origin $LIBHIVE_COMMIT
+
+A local checkout of the library can be used instead:
+
+  LIBHIVE_SOURCE=/path/to/libhive npm run build:wasm
+EOF
+        exit 1
+    fi
+    # The checkout is forced, so a tree that has drifted from the pinned
+    # commit cannot leak into the build.
+    git -C "$LIBHIVE_SOURCE" checkout --force --detach "$LIBHIVE_COMMIT"
+fi
+
+if [ ! -d "$LIBHIVE_SOURCE/src" ]; then
+    echo "error: the library sources are missing: $LIBHIVE_SOURCE" >&2
+    exit 1
+fi
+
+# The build compiles a copy of the sources, so the checkout the sources
+# come from stays untouched.
+if [ -e "$LIBHIVE_DIR/.git" ]; then
+    cat >&2 <<EOF
+error: LIBHIVE_DIR ($LIBHIVE_DIR) is a git checkout.
+
+LIBHIVE_DIR is the build copy, not the source. Point LIBHIVE_SOURCE at the
+sources instead:
+
+  LIBHIVE_SOURCE=$LIBHIVE_DIR npm run build:wasm
 EOF
     exit 1
+fi
+rm -rf "$LIBHIVE_DIR"
+mkdir -p "$LIBHIVE_DIR"
+cp -R "$LIBHIVE_SOURCE/include" "$LIBHIVE_DIR/include"
+cp -R "$LIBHIVE_SOURCE/src" "$LIBHIVE_DIR/src"
+if [ -f "$LIBHIVE_SOURCE/LICENSE" ]; then
+    cp "$LIBHIVE_SOURCE/LICENSE" "$LIBHIVE_DIR/LICENSE"
 fi
 
 mkdir -p "$OUT_DIR"
@@ -70,6 +137,11 @@ fi
 # Without the definitions they would stay in the API and render silence.
 ENGINE_DEFS="-DLIBHIVE_ENGINE_HIHAT -DLIBHIVE_ENGINE_CYMBAL"
 
+# The FX bus is compiled in, the way the library's own Makefile does: without
+# the reverb the bus renders silence and its parameters report themselves
+# unsupported, so the effects module of the panel would do nothing.
+FX_DEFS="-DLIBHIVE_FX_REVERB -DLIBHIVE_FX_NOISE_GATE"
+
 # Only the glue is exported. The allocator stays on: the library calls
 # calloc() for its context and malloc() for its sine table.
 #
@@ -89,6 +161,7 @@ EXPORTED_FUNCTIONS='["_malloc","_free","_hive_version_number","_hive_create","_h
     -std=c99 -O2 \
     -Wall -Wextra -Werror \
     $ENGINE_DEFS \
+    $FX_DEFS \
     $FLOAT_WARN \
     --no-entry \
     -o "$OUT_DIR/hive.mjs" \
