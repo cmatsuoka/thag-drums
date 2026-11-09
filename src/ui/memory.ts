@@ -350,20 +350,79 @@ const SNARE_TONES: Readonly<
 
 /**
  * The memories of the kit: the positions of every module, the tones in
- * them and the position that is selected.
+ * them and the position that is picked.
+ *
+ * A position holds a tone that was put into it on purpose: a short press
+ * on the button of a position picks it and recalls the tone in it, a
+ * long press stores the tone of the module in it.
+ *
+ * The tone of a module that is *live* — the one the engine plays and the
+ * knobs of the module work on — belongs to no position: it is lost when
+ * another position is picked, and it only becomes a tone of its own when
+ * the user holds the button of a position down.
+ *
+ * The engine owns the live tone. The store keeps a copy of it so the kit
+ * comes back the way it was left, and the panel hands the engine's own
+ * values over whenever they change.
  */
 export interface MemoryStore {
-  /** The position that is selected for a voice, from 1 to 4. */
+  /** The position that is picked for a voice, from 1 to 4. */
   selected(voice: Voice): number;
   /**
-   * The tone of a position of a voice, in the engine's own order, in
-   * Q16.16. Without a position it is the selected one.
+   * The tone stored in a position of a voice, in the engine's own order,
+   * in Q16.16.
    */
-  values(voice: Voice, position?: number): Int32Array;
-  /** Select a position of a voice. */
-  select(voice: Voice, position: number): void;
-  /** Remember a value in the selected position of a voice. */
+  stored(voice: Voice, position: number): Int32Array;
+  /**
+   * The live tone of a voice: the configuration the module is playing
+   * right now, in the engine's own order, in Q16.16.
+   *
+   * The live tone belongs to no position: it is lost when another
+   * position is picked, and it only becomes a tone of its own when the
+   * user holds the button of a position down.
+   */
+  live(voice: Voice): Int32Array;
+  /**
+   * Write a value of the engine into the live tone of a voice.
+   *
+   * The value is the one the panel has written to the engine, clamped to
+   * the range of the engine the way the engine itself clamps it. The
+   * position that is picked is not touched by it: a tone is only written
+   * into a position when the user holds the button of that position
+   * down.
+   */
   write(voice: Voice, param: SoundParam, value: number): void;
+  /**
+   * Pick a position of a voice.
+   *
+   * The tone in the position is what the module works on from then on: a
+   * live tone that was not stored is lost here. The caller writes the
+   * tone of the position into the engine, so the module plays it.
+   *
+   * Picking the position that is picked already changes nothing, and a
+   * live tone that was not stored is not thrown away by it.
+   *
+   * Returns whether the position changed.
+   */
+  select(voice: Voice, position: number): boolean;
+  /**
+   * Store the live tone of a voice in a position and pick that position.
+   *
+   * This is what the user asks for when the button of the position is
+   * held down. The tone is the one the module is playing right now, and
+   * the engine keeps it: the store only remembers it.
+   */
+  store(voice: Voice, position: number): void;
+  /**
+   * Whether the live tone of a voice differs from the tone in the
+   * position that is picked: the configuration is not stored yet.
+   */
+  pending(voice: Voice): boolean;
+  /**
+   * Whether the tone in a position is one of its own: it is not the
+   * built-in tone of that position any more.
+   */
+  modified(voice: Voice, position: number): boolean;
   /** Put the selected position of a voice back to its built-in tone. */
   resetSelected(voice: Voice): void;
   /** Put every position of every voice back to its built-in tone. */
@@ -375,11 +434,13 @@ export interface MemoryStore {
 }
 
 /**
- * What a module holds: the four positions and the one that is selected.
+ * What a module holds: the four positions, the tone that is live and the
+ * one that is picked.
  */
 interface VoiceMemory {
   selected: number;
   positions: Int32Array[];
+  live: Int32Array;
 }
 
 /**
@@ -495,7 +556,12 @@ export function createMemoryStore(
     for (let position = 1; position <= MEMORY_POSITIONS; position += 1) {
       positions.push(builtIn(voice, position));
     }
-    memories.set(voice, { selected: 1, positions });
+    /* The live tone starts as the tone of the position that is picked:
+     * the knobs of the module work on it. */
+    const live = new Int32Array(
+      positions[0] ?? new Int32Array(SOUND_PARAM_COUNT),
+    );
+    memories.set(voice, { selected: 1, positions, live });
   }
 
   /* What the browser kept from an earlier visit. */
@@ -516,7 +582,11 @@ export function createMemoryStore(
         if (typeof entry !== 'object' || entry === null) {
           continue;
         }
-        const savedMemory = entry as { selected?: unknown; positions?: unknown };
+        const savedMemory = entry as {
+          selected?: unknown;
+          positions?: unknown;
+          live?: unknown;
+        };
 
         if (isInteger(savedMemory.selected)) {
           memory.selected = clamp(
@@ -526,31 +596,57 @@ export function createMemoryStore(
           );
         }
 
-        if (!Array.isArray(savedMemory.positions)) {
-          continue;
+        const range = defaults.get(voice);
+        const clampTo = (param: number, value: number): number => {
+          const low = range?.min[param] ?? value;
+          const high = range?.max[param] ?? value;
+          return clamp(value, low, high);
+        };
+
+        if (Array.isArray(savedMemory.positions)) {
+          for (
+            let position = 1;
+            position <= MEMORY_POSITIONS;
+            position += 1
+          ) {
+            const savedValues = savedMemory.positions[position - 1];
+            if (
+              !Array.isArray(savedValues) ||
+              savedValues.length !== SOUND_PARAM_COUNT
+            ) {
+              continue;
+            }
+            const values = memory.positions[position - 1];
+            if (values === undefined) {
+              continue;
+            }
+            for (let param = 0; param < SOUND_PARAM_COUNT; param += 1) {
+              const value = savedValues[param];
+              if (!isInteger(value)) {
+                continue;
+              }
+              values[param] = clampTo(param, value);
+            }
+          }
         }
 
-        const range = defaults.get(voice);
-        for (let position = 1; position <= MEMORY_POSITIONS; position += 1) {
-          const savedValues = savedMemory.positions[position - 1];
-          if (
-            !Array.isArray(savedValues) ||
-            savedValues.length !== SOUND_PARAM_COUNT
-          ) {
-            continue;
-          }
-          const values = memory.positions[position - 1];
-          if (values === undefined) {
-            continue;
-          }
+        /* The live tone is the configuration the module is playing: it is
+         * kept apart from the positions, so it is restored on its own. A
+         * store that has no live tone of its own starts as the tone of the
+         * position that is picked. */
+        if (Array.isArray(savedMemory.live)) {
+          const savedLive = savedMemory.live;
           for (let param = 0; param < SOUND_PARAM_COUNT; param += 1) {
-            const value = savedValues[param];
+            const value = savedLive[param];
             if (!isInteger(value)) {
               continue;
             }
-            const low = range?.min[param] ?? value;
-            const high = range?.max[param] ?? value;
-            values[param] = clamp(value, low, high);
+            memory.live[param] = clampTo(param, value);
+          }
+        } else {
+          const values = memory.positions[memory.selected - 1];
+          if (values !== undefined) {
+            memory.live.set(values);
           }
         }
       }
@@ -568,6 +664,7 @@ export function createMemoryStore(
       table[voice] = {
         selected: memory.selected,
         positions: memory.positions.map((values) => Array.from(values)),
+        live: Array.from(memory.live),
       };
     }
     return { version: STORAGE_VERSION, voices: table };
@@ -585,30 +682,24 @@ export function createMemoryStore(
       return memories.get(voice)?.selected ?? 1;
     },
 
-    values(voice: Voice, position?: number): Int32Array {
+    stored(voice: Voice, position: number): Int32Array {
       const memory = memories.get(voice);
       if (memory === undefined) {
         return new Int32Array(SOUND_PARAM_COUNT);
       }
-      const slot = position ?? memory.selected;
-      const values = memory.positions[slot - 1];
+      const values = memory.positions[position - 1];
       if (values === undefined) {
         return new Int32Array(SOUND_PARAM_COUNT);
       }
       return new Int32Array(values);
     },
 
-    select(voice: Voice, position: number): void {
+    live(voice: Voice): Int32Array {
       const memory = memories.get(voice);
       if (memory === undefined) {
-        return;
+        return new Int32Array(SOUND_PARAM_COUNT);
       }
-      memory.selected = clamp(
-        Math.round(position),
-        1,
-        MEMORY_POSITIONS,
-      );
-      save();
+      return new Int32Array(memory.live);
     },
 
     write(voice: Voice, param: SoundParam, value: number): void {
@@ -616,16 +707,93 @@ export function createMemoryStore(
       if (memory === undefined) {
         return;
       }
-      const values = memory.positions[memory.selected - 1];
-      if (values === undefined) {
-        return;
-      }
       const slot = SOUND_PARAMS.indexOf(param);
       if (slot < 0) {
         return;
       }
-      values[slot] = value;
+      /* The value is clamped to the range of the engine the way the
+       * engine itself clamps it, so the live tone is what the engine
+       * holds. The position that is picked is not touched by it: a tone is
+       * only written into a position when the user holds the button of
+       * that position down. */
+      const table = defaults.get(voice);
+      const low = table?.min[slot] ?? value;
+      const high = table?.max[slot] ?? value;
+      memory.live[slot] = clamp(value, low, high);
       save();
+    },
+
+    select(voice: Voice, position: number): boolean {
+      const memory = memories.get(voice);
+      if (memory === undefined) {
+        return false;
+      }
+      const slot = clamp(Math.round(position), 1, MEMORY_POSITIONS);
+      if (slot === memory.selected) {
+        /* The position that is picked is picked already: the selection
+         * does not change, and a live tone that was not stored is not
+         * thrown away by it. */
+        return false;
+      }
+      memory.selected = slot;
+      /* Picking another position brings the tone it holds back into the
+       * module: a live tone that was not stored is lost here. */
+      const values = memory.positions[slot - 1];
+      if (values !== undefined) {
+        memory.live.set(values);
+      }
+      save();
+      return true;
+    },
+
+    store(voice: Voice, position: number): void {
+      const memory = memories.get(voice);
+      if (memory === undefined) {
+        return;
+      }
+      const slot = clamp(Math.round(position), 1, MEMORY_POSITIONS);
+      /* The tone the module is playing is written into the position, and
+       * the position becomes the one that is picked: the tone in the
+       * module is the tone of the position from now on. */
+      memory.positions[slot - 1] = new Int32Array(memory.live);
+      memory.selected = slot;
+      save();
+    },
+
+    pending(voice: Voice): boolean {
+      const memory = memories.get(voice);
+      if (memory === undefined) {
+        return false;
+      }
+      const values = memory.positions[memory.selected - 1];
+      if (values === undefined) {
+        return false;
+      }
+      for (let slot = 0; slot < SOUND_PARAM_COUNT; slot += 1) {
+        if (memory.live[slot] !== values[slot]) {
+          return true;
+        }
+      }
+      return false;
+    },
+
+    modified(voice: Voice, position: number): boolean {
+      const memory = memories.get(voice);
+      if (memory === undefined) {
+        return false;
+      }
+      const slot = clamp(Math.round(position), 1, MEMORY_POSITIONS);
+      const values = memory.positions[slot - 1];
+      if (values === undefined) {
+        return false;
+      }
+      const built = builtIn(voice, slot);
+      for (let param = 0; param < SOUND_PARAM_COUNT; param += 1) {
+        if (values[param] !== built[param]) {
+          return true;
+        }
+      }
+      return false;
     },
 
     resetSelected(voice: Voice): void {
@@ -633,7 +801,9 @@ export function createMemoryStore(
       if (memory === undefined) {
         return;
       }
-      memory.positions[memory.selected - 1] = builtIn(voice, memory.selected);
+      const built = builtIn(voice, memory.selected);
+      memory.positions[memory.selected - 1] = built;
+      memory.live.set(built);
       save();
     },
 
@@ -643,6 +813,9 @@ export function createMemoryStore(
         for (let position = 1; position <= MEMORY_POSITIONS; position += 1) {
           memory.positions[position - 1] = builtIn(voice, position);
         }
+        memory.live.set(
+          memory.positions[0] ?? new Int32Array(SOUND_PARAM_COUNT),
+        );
       }
       save();
     },

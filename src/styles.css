@@ -313,6 +313,9 @@ body {
 /* the indicator lamps */
 .lamp {
   --lamp-level: 0;
+  /* The glow of the lamp: the light of the instrument of the module, or
+   * the low light of a module whose tone is not stored. */
+  --lamp-glow: 0;
   width: 12px;
   height: 12px;
   border-radius: 50%;
@@ -338,8 +341,8 @@ body {
  * level with a floor and a steep slope. `--lamp-level` itself stays
  * the engine's value.
  */
-.lamp.is-lit {
-  --lamp-glow: min(0.8, calc(var(--lamp-level) * 2.2 + 0.15));
+.lamp.is-lit,
+.lamp.is-dirty {
   background:
     radial-gradient(
       circle at 34% 28%,
@@ -356,7 +359,36 @@ body {
     0 0 calc(8px * var(--lamp-glow)) rgb(var(--lamp-on) / 0.75),
     inset 0 1px 2px rgba(255, 255, 255, calc(0.6 * var(--lamp-glow))),
     0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+/* The lamp of a sounding instrument: its light is the output of the
+ * instrument. */
+.lamp:where(.is-lit) {
+  --lamp-glow: min(0.8, calc(var(--lamp-level) * 2.2 + 0.15));
   animation: lamp-pulse 1.8s ease-in-out infinite;
+}
+
+/*
+ * The tone of the module is not stored in the position it plays: the
+ * lamp of the module stays on, so the module says so with the lamp it
+ * already has and the plate keeps its quiet. The light is steady, where
+ * a lit lamp pulses — that is what tells the two apart.
+ */
+.lamp:where(.is-dirty) {
+  --lamp-glow: 0.67;
+}
+
+/*
+ * The instrument speaks louder: while it sounds, the lamp follows its
+ * output down to nothing, and the steady light of the unsaved tone comes
+ * back when the instrument falls silent.
+ *
+ * The rules above carry the same weight — `:where()` takes the weight of
+ * the class away — so the order of the file is what decides: the last
+ * one that matches wins.
+ */
+.lamp:where(.is-dirty):where(.is-lit) {
+  --lamp-glow: min(0.8, calc(var(--lamp-level) * 2.2));
 }
 
 @keyframes lamp-pulse {
@@ -588,6 +620,28 @@ body {
 .strip-mem[aria-pressed="true"]:active {
   background: linear-gradient(180deg, #8e959a 0%, #767d82 100%);
   box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.35);
+}
+
+/* A memory position that holds a tone of the user — one that was stored
+ * in it and is not its built-in tone any more — says so with its own
+ * number: the number is written in a darker ink than the others, so the
+ * position is told apart at a glance without a mark on the button. */
+.strip-mem.is-modified {
+  color: rgba(20, 23, 26, 0.95);
+}
+
+/* The selected position is pressed into the plate and its number is
+ * already dark: the ink of a position that holds a tone of the user is
+ * darker still. */
+.strip-mem.is-selected.is-modified {
+  color: rgba(20, 23, 26, 1);
+}
+
+/* A memory button that is held down is armed: the tone of the module is
+ * on its way into that position. */
+.strip-mem.is-armed {
+  background: linear-gradient(180deg, #b7bcbf 0%, #cbd0d3 100%);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.32);
 }
 
 /* The reset is the one control of a module that throws something away, so

@@ -3,6 +3,7 @@ import {
   CHANNEL_PARAMS,
   FX_PARAMS,
   PARAM_COUNT,
+  SOUND_PARAM_COUNT,
   SOUND_PARAMS,
   VOICE_INSTRUMENTS,
   instrumentIndex,
@@ -168,6 +169,18 @@ const TRIGGER_INSTRUMENT: Readonly<Record<Voice, Instrument>> = {
  */
 const RESET_HOLD_MS = 1000;
 
+/**
+ * How long a memory button of a module must be held down, in
+ * milliseconds.
+ *
+ * A memory button stores the tone of the module in the position it
+ * belongs to. Storing overwrites what is in the position, so it is not a
+ * thing a press should do by accident: the button has to be held down,
+ * and the lamp of the module blinks while it is held, the way it does
+ * for the reset.
+ */
+const MEMORY_HOLD_MS = 1000;
+
 function findInfo(
   info: readonly ParamInfo[],
   voice: Voice,
@@ -210,6 +223,15 @@ export function createPanel(host: HTMLElement, engine: HivedrumEngine): Panel {
    * panel's own store — the engine has no memory storage — and they are
    * kept in the browser, so the kit comes back the way it was left. */
   let memory: MemoryStore | null = null;
+
+  /* Whether the tone of a module is stored in the position it plays.
+   * The mark is only written when it changes: a knob reports a value for
+   * every step of its drag. */
+  const pendingFlags = new Map<Voice, boolean>();
+
+  /* Whether the instrument of a module is sounding, for the label of the
+   * lamp of the module. */
+  const soundingFlags = new Map<Voice, boolean>();
 
   /* The channel of every module: the mixer of the voice and its effects
    * send. They belong to the module and not to the tone in it, so they
@@ -279,9 +301,8 @@ export function createPanel(host: HTMLElement, engine: HivedrumEngine): Panel {
     });
 
     /* The memory positions of the module: four buttons, one for every
-     * tone the module holds. One of them is always selected, and the
-     * selected one is the tone the engine is playing: picking a position
-     * recalls its values, and moving a knob writes them back into it. */
+     * tone the module holds. A press picks the position and recalls the
+     * tone in it; a hold stores the tone of the module in it. */
     const pads = document.createElement('div');
     pads.className = 'strip-pads';
 
@@ -296,14 +317,12 @@ export function createPanel(host: HTMLElement, engine: HivedrumEngine): Panel {
       memoryButton.textContent = String(position);
       memoryButton.setAttribute(
         'aria-label',
-        `memory position ${position} of the ${name.spoken} module`,
+        `memory position ${position} of the ${name.spoken} module, hold to store the tone of the module in it`,
       );
-      /* The button selects a position: it is pressed when the position is
+      /* The button picks a position: it is pressed when the position is
        * the selected one. */
       memoryButton.setAttribute('aria-pressed', 'false');
-      memoryButton.addEventListener('click', () => {
-        selectMemory(voice, position);
-      });
+      wireMemory(voice, position, triggerLamp, memoryButton);
       pads.append(memoryButton);
       memoryButtons.push(memoryButton);
     }
@@ -397,11 +416,11 @@ export function createPanel(host: HTMLElement, engine: HivedrumEngine): Panel {
    * Put the tone of a module back to its built-in values.
    *
    * The built-in values are those of the selected memory position: the
-   * factory values of the engine's own table, and the tones of the Snare,
-   * which are tones of their own. The position is put back to them, and
-   * the values are written to the engine, so the panel reads them back
-   * like every other value and the knobs follow the engine and not the
-   * other way round.
+   * factory values of the engine's own table, and the tones of the
+   * Snare, which are tones of their own. The position is put back to
+   * them, the module works on them from then on, and the values are
+   * written to the engine, so the panel reads them back like every other
+   * value and the knobs follow the engine and not the other way round.
    *
    * The mixer of the channel is not part of a tone: it keeps the values
    * the user has set.
@@ -412,14 +431,19 @@ export function createPanel(host: HTMLElement, engine: HivedrumEngine): Panel {
       return;
     }
     store.resetSelected(voice);
-    engine.setTone(voice, Array.from(store.values(voice)));
+    engine.setTone(voice, Array.from(store.live(voice)));
+    updateMemoryButtons(voice);
+    markPending(voice);
   }
 
   /**
-   * Show which memory position of a module is selected.
+   * Show which memory position of a module is selected, and whether the
+   * position holds a tone of the user.
    *
    * The selected button is pressed in and lit, the other ones are not,
-   * and the button tells the assistive technology that it is pressed.
+   * and the button tells the assistive technology that it is pressed. A
+   * position that holds a tone of the user says so with a mark of its
+   * own: it is not the built-in tone of that position.
    */
   function updateMemoryButtons(voice: Voice): void {
     const strip = strips.get(voice);
@@ -428,28 +452,89 @@ export function createPanel(host: HTMLElement, engine: HivedrumEngine): Panel {
     }
     const selected = memory?.selected(voice) ?? 1;
     const spoken = MODULE_NAMES[voice].spoken;
+    const pending = pendingFlags.get(voice) ?? false;
 
     for (const button of strip.memoryButtons) {
       const position = Number(button.dataset.position ?? '1');
       const isSelected = position === selected;
       button.classList.toggle('is-selected', isSelected);
+      button.classList.toggle(
+        'is-modified',
+        memory?.modified(voice, position) ?? false,
+      );
       button.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
       button.setAttribute(
         'aria-label',
         `memory position ${position} of the ${spoken} module${
           isSelected ? ', selected' : ''
-        }`,
+        }${
+          isSelected && pending ? ', the tone of the module is not stored in it' : ''
+        }, hold to store the tone of the module in it`,
       );
     }
   }
 
   /**
+   * Say when the tone of a module is not stored.
+   *
+   * The tone in the module is the tone the engine plays. When it differs
+   * from the tone in the position the module is playing, the
+   * configuration is not stored yet: the lamp of the module stays on at
+   * a low light, and the user has to hold the button of a position down
+   * to store it.
+   *
+   * The lamp is only written when it changes: the engine reports its
+   * values twenty times a second, and a knob that is dragged reports one
+   * for every step of the drag.
+   */
+  function markPending(voice: Voice): void {
+    const strip = strips.get(voice);
+    if (strip === undefined) {
+      return;
+    }
+    const pending = memory?.pending(voice) ?? false;
+    if (pendingFlags.get(voice) === pending) {
+      return;
+    }
+    pendingFlags.set(voice, pending);
+    strip.triggerLamp.classList.toggle('is-dirty', pending);
+    updateLampLabel(voice);
+    updateMemoryButtons(voice);
+  }
+
+  /**
+   * Say in words what the lamp of a module shows.
+   *
+   * The lamp says two things: the instrument of the module sounds, and
+   * the tone of the module is not stored in the position it plays. Both
+   * of them are in the label, so the assistive technology says what the
+   * light says.
+   */
+  function updateLampLabel(voice: Voice): void {
+    const strip = strips.get(voice);
+    if (strip === undefined) {
+      return;
+    }
+    const sounding = soundingFlags.get(voice) === true;
+    const dirty = pendingFlags.get(voice) === true;
+    strip.triggerLamp.setAttribute(
+      'aria-label',
+      `${MODULE_NAMES[voice].spoken}: ${sounding ? 'sounding' : 'silent'}${
+        dirty ? ', the tone of the module is not stored' : ''
+      }`,
+    );
+  }
+
+  /**
    * Select a memory position of a module.
    *
-   * The position is selected, the tone in it is written to the engine,
-   * and the engine holds it: the knobs of the module follow the engine
-   * and show the tone that was picked. The mixer of the channel is not
-   * part of a tone and stays where the user left it.
+   * The position is selected and the tone in it is written to the
+   * engine, and the engine holds it: the knobs of the module follow the
+   * engine and show the tone that was picked. A tone that was not
+   * stored is lost here.
+   *
+   * The mixer of the channel is not part of a tone and stays where the
+   * user left it.
    */
   function selectMemory(voice: Voice, position: number): void {
     const store = memory;
@@ -457,8 +542,27 @@ export function createPanel(host: HTMLElement, engine: HivedrumEngine): Panel {
       return;
     }
     store.select(voice, position);
+    engine.setTone(voice, Array.from(store.live(voice)));
     updateMemoryButtons(voice);
-    engine.setTone(voice, Array.from(store.values(voice)));
+    markPending(voice);
+  }
+
+  /**
+   * Store the tone of a module in a memory position.
+   *
+   * The tone the module is playing is written into the position, and
+   * the position becomes the one that is picked: the tone in the module
+   * is the tone of the position from now on. The engine keeps the tone
+   * it plays, so nothing is written to it.
+   */
+  function storeMemory(voice: Voice, position: number): void {
+    const store = memory;
+    if (store === null) {
+      return;
+    }
+    store.store(voice, position);
+    updateMemoryButtons(voice);
+    markPending(voice);
   }
 
   /**
@@ -482,6 +586,104 @@ export function createPanel(host: HTMLElement, engine: HivedrumEngine): Panel {
         continue;
       }
       engine.setParam(voice, param, value);
+    }
+  }
+
+  /**
+   * Wire the memory button of a position.
+   *
+   * A press picks the position and recalls the tone in it. A hold stores
+   * the tone of the module in the position: storing overwrites what is
+   * in it, so it is not a thing a press should do by accident. The
+   * button has to be held down for a second, and the lamp of the module
+   * blinks while it is held, the way it does for the reset.
+   *
+   * The keyboard holds the button down the same way: the key goes down
+   * and stays down. The default of the key is prevented, so the button
+   * does not pick the position on its own.
+   */
+  function wireMemory(
+    voice: Voice,
+    position: number,
+    lamp: HTMLElement,
+    button: HTMLButtonElement,
+  ): void {
+    let timer: number | null = null;
+    /* Whether the last hold stored the tone: the click that follows it
+     * must not pick the position as well. */
+    let stored = false;
+
+    const stop = (): void => {
+      if (timer !== null) {
+        window.clearTimeout(timer);
+        timer = null;
+      }
+      button.classList.remove('is-armed');
+      lamp.classList.remove('is-blinking');
+    };
+
+    const arm = (): void => {
+      if (timer !== null) {
+        return;
+      }
+      stored = false;
+      button.classList.add('is-armed');
+      lamp.classList.add('is-blinking');
+      timer = window.setTimeout(() => {
+        timer = null;
+        stored = true;
+        storeMemory(voice, position);
+        stop();
+      }, MEMORY_HOLD_MS);
+    };
+
+    button.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0) {
+        return;
+      }
+      /* The button keeps the pointer while it is held, so the hold does
+       * not end when the pointer wanders off it. */
+      button.setPointerCapture(event.pointerId);
+      arm();
+    });
+
+    for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
+      button.addEventListener(type, stop);
+    }
+
+    button.addEventListener('click', () => {
+      if (stored) {
+        /* The hold stored the tone: the click that comes with the
+         * release must not pick the position as well. */
+        stored = false;
+        return;
+      }
+      selectMemory(voice, position);
+    });
+
+    button.addEventListener('keydown', (event) => {
+      if (event.key !== ' ' && event.key !== 'Enter') {
+        return;
+      }
+      event.preventDefault();
+      arm();
+    });
+
+    button.addEventListener('keyup', (event) => {
+      if (event.key !== ' ' && event.key !== 'Enter') {
+        return;
+      }
+      event.preventDefault();
+      const held = stored;
+      stored = false;
+      stop();
+      if (!held) {
+        selectMemory(voice, position);
+      }
+    });
+
+    for (const type of ['blur']) {
+      button.addEventListener(type, stop);
     }
   }
 
@@ -591,11 +793,14 @@ export function createPanel(host: HTMLElement, engine: HivedrumEngine): Panel {
         } else {
           engine.setParam(voice, spec.param, raw);
         }
-        /* The value belongs to the tone that is selected, or to the
-         * channel of the module: the mixer of a voice is not part of a
-         * tone. */
+        /* The value belongs to the tone that is live, or to the channel
+         * of the module: the mixer of a voice is not part of a tone. A
+         * knob does not write into a memory position — the tone is only
+         * stored there when the user holds the button of that position
+         * down. */
         if (isSoundParam(spec.param)) {
           memory?.write(voice, spec.param, raw);
+          markPending(voice);
         } else {
           channel?.write(voice, spec.param as ChannelParam, raw);
         }
@@ -758,11 +963,15 @@ export function createPanel(host: HTMLElement, engine: HivedrumEngine): Panel {
       strip.triggerLamp.style.setProperty('--lamp-level', level.toFixed(3));
 
       /* The label follows the engine: the lamp may still fade out after
-       * the instrument has fallen silent. */
-      strip.triggerLamp.setAttribute(
-        'aria-label',
-        `${MODULE_NAMES[voice].spoken}: ${sounding ? 'sounding' : 'silent'}`,
-      );
+       * the instrument has fallen silent. The lamp says two things — the
+       * instrument sounds, and the tone of the module is not stored — so
+       * both of them are in the label. */
+      soundingFlags.set(voice, sounding);
+      updateLampLabel(voice);
+
+      /* The tone of the module may no longer be the tone in the position
+       * it plays: the engine reports the change and the mark follows. */
+      markPending(voice);
     }
   };
 
@@ -784,7 +993,7 @@ export function createPanel(host: HTMLElement, engine: HivedrumEngine): Panel {
     fxStore = createFxStore(fxInfo);
 
     /* The engine takes the values of the bus the browser kept, and every
-     * module takes the values of the position that is selected: the kit
+     * module takes the tone of the position that is selected: the kit
      * comes back the way it was left. */
     for (const entry of fxInfo) {
       const param = FX_PARAMS[entry.param];
@@ -796,7 +1005,7 @@ export function createPanel(host: HTMLElement, engine: HivedrumEngine): Panel {
 
     for (const voice of PANEL_ORDER) {
       updateMemoryButtons(voice);
-      engine.setTone(voice, Array.from(memory.values(voice)));
+      engine.setTone(voice, Array.from(memory.live(voice)));
       applyChannel(voice);
     }
 
@@ -844,7 +1053,8 @@ export function createPanel(host: HTMLElement, engine: HivedrumEngine): Panel {
         store.resetAll();
         for (const voice of PANEL_ORDER) {
           updateMemoryButtons(voice);
-          engine.setTone(voice, Array.from(store.values(voice)));
+          engine.setTone(voice, Array.from(store.live(voice)));
+          markPending(voice);
         }
       }
 

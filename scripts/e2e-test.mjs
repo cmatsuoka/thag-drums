@@ -285,6 +285,10 @@ try {
   page.on('pageerror', (error) => {
     consoleErrors.push(error.message);
   });
+  /* The reset of the demo asks for a confirmation: the test says yes. */
+  page.on('dialog', (dialog) => {
+    void dialog.accept();
+  });
 
   await page.goto(URL);
 
@@ -593,24 +597,17 @@ try {
 
   /* The reset of a module throws the knobs away, so it has to be held
    * down: a short press leaves the module as it is, and the lamp of the
-   * module blinks while the button is held. */
+   * module blinks while the button is held. The reset puts the *selected
+   * position* back to its built-in tone, and the first position of the
+   * Tom 1 is a tone of its own: 150 Hz, not the factory value of the
+   * engine. */
   const tomTone = page.locator(
     '.strip[data-voice="tom1"] .knob[data-param="tonePitch"]',
   );
-  const tomDefault = await page.evaluate(
-    ({ voice, param }) => {
-      const info = window.hivedrum?.paramInfo ?? [];
-      const entry = info.find((e) => e.voice === voice && e.param === param);
-      return entry?.default ?? null;
-    },
-    {
-      voice: VOICES.indexOf('tom1'),
-      param: PARAMS.indexOf('tonePitch'),
-    },
-  );
+  const tomBuiltIn = Math.round(150 * 65536);
 
   await tomTone.press('ArrowUp');
-  await waitForEngineValueChange(page, 'tom1', 'tonePitch', tomDefault);
+  await waitForEngineValueChange(page, 'tom1', 'tonePitch', tomBuiltIn);
 
   const resetButton = page.locator('.strip[data-voice="tom1"] .strip-reset');
   const resetBox = await resetButton.boundingBox();
@@ -633,7 +630,7 @@ try {
   await page.waitForTimeout(200);
   check(
     (await readEngineValues(page))[engineIndex('tom1', 'tonePitch')] !==
-      tomDefault,
+      tomBuiltIn,
     'a short press on the reset leaves the knobs where they are',
   );
 
@@ -642,9 +639,9 @@ try {
   await page.mouse.down();
   await page.waitForTimeout(1400);
   await page.mouse.up();
-  await waitForEngineValue(page, 'tom1', 'tonePitch', tomDefault);
+  await waitForEngineValue(page, 'tom1', 'tonePitch', tomBuiltIn);
   check(
-    Number(await tomTone.getAttribute('data-value')) === tomDefault,
+    Number(await tomTone.getAttribute('data-value')) === tomBuiltIn,
     'a hold on the reset puts the knobs back to their defaults',
   );
 
@@ -866,8 +863,9 @@ try {
   await snareMemory(2).click();
   await page.waitForTimeout(300);
 
-  /* A knob that is moved while a position is selected belongs to that
-   * position: it is still there when the position is picked again. */
+  /* A knob that is moved belongs to the live tone of the module: it is
+   * not written into the memory position that is picked, and it is lost
+   * when another position is picked. */
   const snareTone = page.locator(
     '.strip[data-voice="snare"] .knob[data-param="tonePitch"]',
   );
@@ -879,6 +877,18 @@ try {
     'the tone of the snare moves in the second position',
   );
 
+  /* The tone of the module is not stored in the position it plays: the
+   * lamp of the module says so with a low light. */
+  check(
+    await page.evaluate(
+      () =>
+        document
+          .querySelector('#lamp-snare-trigger')
+          ?.classList.contains('is-dirty') === true,
+    ),
+    'the lamp of the module stays on while the tone is not stored',
+  );
+
   await snareMemory(1).click();
   await page.waitForTimeout(300);
   equal(
@@ -886,13 +896,60 @@ try {
     q16(96),
     'the first position of the snare holds its own tone again',
   );
+  check(
+    await page.evaluate(
+      () =>
+        document
+          .querySelector('#lamp-snare-trigger')
+          ?.classList.contains('is-dirty') === false,
+    ),
+    'the lamp of the module goes dark when the tone is stored again',
+  );
 
   await snareMemory(2).click();
   await page.waitForTimeout(300);
   equal(
     stateValue(await readEngineState(page), 'snare', 'tonePitch'),
-    snareEdited,
-    'the edit of the second position is still there',
+    q16(92),
+    'the edit is not written into the position that is picked',
+  );
+
+  /* A long press on a memory button stores the tone of the module in that
+   * position: the lamp of the module blinks while the button is held. */
+  await snareTone.press('ArrowUp');
+  await page.waitForTimeout(300);
+  const snareStored = Number(await snareTone.getAttribute('data-value'));
+  const snareSecondButton = page.locator(
+    '.strip[data-voice="snare"] .strip-mem[data-position="2"]',
+  );
+  const secondBox = await snareSecondButton.boundingBox();
+  await page.mouse.move(
+    secondBox.x + secondBox.width / 2,
+    secondBox.y + secondBox.height / 2,
+  );
+  await page.mouse.down();
+  await page.waitForTimeout(200);
+  check(
+    await page.evaluate(
+      () =>
+        document
+          .querySelector('#lamp-snare-trigger')
+          ?.classList.contains('is-blinking') === true,
+    ),
+    'the lamp of the module blinks while a memory button is held',
+  );
+  await page.waitForTimeout(1200);
+  await page.mouse.up();
+  await page.waitForTimeout(300);
+
+  await snareMemory(1).click();
+  await page.waitForTimeout(300);
+  await snareMemory(2).click();
+  await page.waitForTimeout(300);
+  equal(
+    stateValue(await readEngineState(page), 'snare', 'tonePitch'),
+    snareStored,
+    'a long press stores the tone of the module in that position',
   );
 
   /* The reset of the module puts the selected position back to its
@@ -932,12 +989,23 @@ try {
   );
 
   /* The memories of the kit and the effects of the bus are kept in the
-   * browser: the kit comes back the way it was left. */
+   * browser: the kit comes back the way it was left. The tone of the
+   * snare is stored in its position with a long press first, so the
+   * stored tone is the one that comes back. */
   await snareMemory(3).click();
   await page.waitForTimeout(300);
   await snareTone.press('ArrowDown');
   await page.waitForTimeout(300);
   const kept = Number(await snareTone.getAttribute('data-value'));
+  const thirdBox = await snareMemory(3).boundingBox();
+  await page.mouse.move(
+    thirdBox.x + thirdBox.width / 2,
+    thirdBox.y + thirdBox.height / 2,
+  );
+  await page.mouse.down();
+  await page.waitForTimeout(1200);
+  await page.mouse.up();
+  await page.waitForTimeout(300);
 
   const wet = page.locator('.strip-fx-module .knob[data-control="level"]');
   const wetBefore = Number(await wet.getAttribute('data-value'));
