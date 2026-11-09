@@ -1,4 +1,4 @@
-import type { HiveEngine } from '../audio/engine';
+import type { HivedrumEngine } from '../audio/engine';
 import {
   CHANNEL_PARAMS,
   FX_PARAMS,
@@ -187,7 +187,7 @@ function isSoundParam(param: Param): param is SoundParam {
   return (SOUND_PARAMS as readonly string[]).includes(param);
 }
 
-export function createPanel(host: HTMLElement, engine: HiveEngine): Panel {
+export function createPanel(host: HTMLElement, engine: HivedrumEngine): Panel {
   const fitHost = document.createElement('div');
   fitHost.className = 'console-fit';
 

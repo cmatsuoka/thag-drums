@@ -103,7 +103,7 @@ function equal(actual, expected, message) {
  * between the Emscripten versions, so they are resolved from the module
  * itself. */
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const bytes = await readFile(path.join(root, 'build', 'hive.wasm'));
+const bytes = await readFile(path.join(root, 'build', 'hivedrum.wasm'));
 const module = await WebAssembly.compile(bytes);
 
 let memory = null;
@@ -168,14 +168,14 @@ function fxParamInfo(pointer, param) {
 }
 
 /* The version of the linked library. */
-const version = engine.hive_version_number();
+const version = engine.hivedrum_version_number();
 check(version > 0, `the library reports its version (${version})`);
 
-const context = engine.hive_create(SAMPLE_RATE);
+const context = engine.hivedrum_create(SAMPLE_RATE);
 check(context !== 0, 'the context is created');
 
 /* The parameter probe has to agree with the library's own table. */
-const infoPtr = engine.hive_param_info();
+const infoPtr = engine.hivedrum_param_info();
 
 const kickTone = paramInfo(infoPtr, VOICE.KICK, PARAM.TONE_PITCH);
 equal(kickTone.min, 10 * Q16, 'the Kick tone pitch starts at 10 Hz');
@@ -195,11 +195,11 @@ equal(kickSens.default, Q16, 'the Kick sensitivity defaults to 1');
 /* The shared FX bus reports its own table, and the glue probes it from the
  * engine's setters the way it probes the voices. */
 equal(
-  engine.hive_fx_param_count(),
+  engine.hivedrum_fx_param_count(),
   FX_PARAM_COUNT,
   'the FX bus has nine parameters',
 );
-const fxInfoPtr = engine.hive_fx_param_info();
+const fxInfoPtr = engine.hivedrum_fx_param_info();
 const roomSize = fxParamInfo(fxInfoPtr, FX.ROOM_SIZE);
 equal(roomSize.min, 0, 'the room size starts at 0');
 equal(roomSize.max, Q16, 'the room size ends at 1');
@@ -214,28 +214,28 @@ equal(
 );
 
 /* The FX bus snapshot carries the values the engine holds. */
-const fxStatePtr = engine.hive_fx_state(context);
+const fxStatePtr = engine.hivedrum_fx_state(context);
 equal(
   readI32(fxStatePtr + FX.WET * 4),
   Math.round(Q16 / 2),
   'the FX snapshot carries the wet level',
 );
 const fxOut = engine.malloc(4);
-engine.hive_set_fx_param(context, FX.WET, Q16 / 4);
-engine.hive_get_fx_param(context, FX.WET, fxOut);
+engine.hivedrum_set_fx_param(context, FX.WET, Q16 / 4);
+engine.hivedrum_get_fx_param(context, FX.WET, fxOut);
 equal(readI32(fxOut), Q16 / 4, 'the FX setter stores the value');
 
 /* The send of a module has its own function: it is the FX_SEND of the
  * voice the instrument belongs to. */
 const sendOut = engine.malloc(4);
 equal(
-  engine.hive_set_instrument_fx_send(context, INSTRUMENT.SNARE, Q16 / 4),
+  engine.hivedrum_set_instrument_fx_send(context, INSTRUMENT.SNARE, Q16 / 4),
   STATUS.OK,
   'the instrument FX send is set',
 );
-engine.hive_get_instrument_fx_send(context, INSTRUMENT.SNARE, sendOut);
+engine.hivedrum_get_instrument_fx_send(context, INSTRUMENT.SNARE, sendOut);
 equal(readI32(sendOut), Q16 / 4, 'the instrument FX send is stored');
-const sendPanelPtr = engine.hive_panel_state(context);
+const sendPanelPtr = engine.hivedrum_panel_state(context);
 const sendPanelIndex =
   (VOICE.SNARE * PARAM_COUNT + PARAM.FX_SEND) * PANEL_STRIDE * 4;
 equal(
@@ -243,11 +243,11 @@ equal(
   Q16 / 4,
   'the panel snapshot carries the instrument FX send',
 );
-engine.hive_reset(context);
+engine.hivedrum_reset(context);
 
 for (const voice of Object.values(VOICE)) {
   equal(
-    engine.hive_param_supported(voice, PARAM.SENSITIVITY),
+    engine.hivedrum_param_supported(voice, PARAM.SENSITIVITY),
     1,
     `the voice ${voice} supports the sensitivity`,
   );
@@ -257,22 +257,22 @@ for (const voice of Object.values(VOICE)) {
  * Bell/Cymbal of their own and no Click/Drum or Drive of the drums. */
 for (const voice of [VOICE.CYMBAL, VOICE.HIHAT]) {
   equal(
-    engine.hive_param_supported(voice, PARAM.CLICK_TONE),
+    engine.hivedrum_param_supported(voice, PARAM.CLICK_TONE),
     0,
     `the voice ${voice} has no click/drum`,
   );
   equal(
-    engine.hive_param_supported(voice, PARAM.DRIVE),
+    engine.hivedrum_param_supported(voice, PARAM.DRIVE),
     0,
     `the voice ${voice} has no drive`,
   );
   equal(
-    engine.hive_param_supported(voice, PARAM.TONE_PITCH),
+    engine.hivedrum_param_supported(voice, PARAM.TONE_PITCH),
     1,
     `the voice ${voice} supports the tone pitch`,
   );
   equal(
-    engine.hive_param_supported(voice, PARAM.BELL_CYMBAL),
+    engine.hivedrum_param_supported(voice, PARAM.BELL_CYMBAL),
     1,
     `the voice ${voice} supports the bell/cymbal`,
   );
@@ -283,24 +283,24 @@ for (const voice of [VOICE.CYMBAL, VOICE.HIHAT]) {
  * filter with the Noise and Noise Body edges. */
 for (const param of [PARAM.SWEEP, PARAM.BEND]) {
   equal(
-    engine.hive_param_supported(VOICE.CYMBAL, param),
+    engine.hivedrum_param_supported(VOICE.CYMBAL, param),
     1,
     `the Cymbal supports the ${param}`,
   );
   equal(
-    engine.hive_param_supported(VOICE.HIHAT, param),
+    engine.hivedrum_param_supported(VOICE.HIHAT, param),
     0,
     `the Hi-hat has no ${param}`,
   );
 }
 for (const param of [PARAM.NOISE_PITCH, PARAM.NOISE_BODY]) {
   equal(
-    engine.hive_param_supported(VOICE.HIHAT, param),
+    engine.hivedrum_param_supported(VOICE.HIHAT, param),
     1,
     `the Hi-hat supports the ${param}`,
   );
   equal(
-    engine.hive_param_supported(VOICE.CYMBAL, param),
+    engine.hivedrum_param_supported(VOICE.CYMBAL, param),
     1,
     `the Cymbal supports the ${param}`,
   );
@@ -336,7 +336,7 @@ equal(hihatColor.default, 3000 * Q16, 'the Hi-hat color defaults to 3000 Hz');
 
 /* An out-of-range value is clamped, stored clamped and reported. The value
  * has to stay inside the int32 range of the API. */
-const outOfRange = engine.hive_set_param(
+const outOfRange = engine.hivedrum_set_param(
   context,
   VOICE.KICK,
   PARAM.TONE_PITCH,
@@ -344,11 +344,11 @@ const outOfRange = engine.hive_set_param(
 );
 equal(outOfRange, STATUS.RANGE, 'a value above the range is reported');
 const scratchPtr = engine.malloc(4);
-engine.hive_get_param(context, VOICE.KICK, PARAM.TONE_PITCH, scratchPtr);
+engine.hivedrum_get_param(context, VOICE.KICK, PARAM.TONE_PITCH, scratchPtr);
 equal(readI32(scratchPtr), 440 * Q16, 'the clamped value is stored');
 
 /* The panel snapshot carries the engine's own values. */
-const panelPtr = engine.hive_panel_state(context);
+const panelPtr = engine.hivedrum_panel_state(context);
 const panelIndex = (voice, param) =>
   (voice * PARAM_COUNT + param) * PANEL_STRIDE * 4;
 equal(
@@ -372,21 +372,21 @@ equal(
 const outPtr = engine.malloc(BLOCK_FRAMES * 2 * Int16Array.BYTES_PER_ELEMENT);
 
 for (const instrument of Object.values(INSTRUMENT)) {
-  const status = engine.hive_trigger(context, instrument);
+  const status = engine.hivedrum_trigger(context, instrument);
   equal(status, STATUS.OK, `the instrument ${instrument} is triggered`);
 }
 
 /* The velocity is the strike level of the hit, in the MIDI scale. */
-const tooLoud = engine.hive_trigger_velocity(context, VOICE.KICK, 200);
+const tooLoud = engine.hivedrum_trigger_velocity(context, VOICE.KICK, 200);
 equal(tooLoud, STATUS.RANGE, 'a velocity above 127 is rejected');
-const withVelocity = engine.hive_trigger_velocity(context, VOICE.KICK, 64);
+const withVelocity = engine.hivedrum_trigger_velocity(context, VOICE.KICK, 64);
 equal(withVelocity, STATUS.OK, 'a velocity inside the range is accepted');
 
 let peak = 0;
 let blocks = 0;
 const totalBlocks = Math.ceil((SAMPLE_RATE * 1) / BLOCK_FRAMES);
 while (blocks < totalBlocks) {
-  engine.hive_process(context, outPtr, BLOCK_FRAMES);
+  engine.hivedrum_process(context, outPtr, BLOCK_FRAMES);
   const view = new Int16Array(
     engine.memory.buffer,
     outPtr,
@@ -411,7 +411,7 @@ function renderSeconds(seconds) {
   let peakValue = 0;
   const blocks = Math.ceil((SAMPLE_RATE * seconds) / BLOCK_FRAMES);
   for (let block = 0; block < blocks; block += 1) {
-    engine.hive_process(context, outPtr, BLOCK_FRAMES);
+    engine.hivedrum_process(context, outPtr, BLOCK_FRAMES);
     const view = new Int16Array(
       engine.memory.buffer,
       outPtr,
@@ -427,12 +427,12 @@ function renderSeconds(seconds) {
   return peakValue;
 }
 
-engine.hive_reset(context);
-engine.hive_trigger_velocity(context, VOICE.KICK, 16);
+engine.hivedrum_reset(context);
+engine.hivedrum_trigger_velocity(context, VOICE.KICK, 16);
 const softPeak = renderSeconds(0.5);
 
-engine.hive_reset(context);
-engine.hive_trigger_velocity(context, VOICE.KICK, 127);
+engine.hivedrum_reset(context);
+engine.hivedrum_trigger_velocity(context, VOICE.KICK, 127);
 const fullPeak = renderSeconds(0.5);
 
 check(
@@ -442,36 +442,36 @@ check(
 
 /* Sensitivity 0: the velocity is ignored and the hit sounds at full
  * strike level. */
-engine.hive_reset(context);
-engine.hive_set_param(context, VOICE.KICK, PARAM.SENSITIVITY, 0);
-engine.hive_trigger_velocity(context, VOICE.KICK, 16);
+engine.hivedrum_reset(context);
+engine.hivedrum_set_param(context, VOICE.KICK, PARAM.SENSITIVITY, 0);
+engine.hivedrum_trigger_velocity(context, VOICE.KICK, 16);
 const insensitivePeak = renderSeconds(0.5);
 
 check(
   insensitivePeak >= fullPeak / 2,
   `with sensitivity 0 a soft hit sounds (${insensitivePeak} vs ${fullPeak})`,
 );
-engine.hive_reset(context);
+engine.hivedrum_reset(context);
 
 /* The engine reports the level of every instrument by itself: the peak of
  * the instrument's own voice, after its own volume and before the pan and
  * the mix. That is the level the lamp of a module is lit by. The glue
  * hands the levels over in a static buffer, so the export has to be called
  * again to read them after a block has been rendered. */
-engine.hive_reset(context);
-engine.hive_process(context, outPtr, BLOCK_FRAMES);
-let levelsPtr = engine.hive_instrument_levels(context);
+engine.hivedrum_reset(context);
+engine.hivedrum_process(context, outPtr, BLOCK_FRAMES);
+let levelsPtr = engine.hivedrum_instrument_levels(context);
 equal(
   readI32(levelsPtr),
   0,
   'no instrument reports a level while the kit is silent',
 );
 
-engine.hive_trigger(context, VOICE.KICK);
+engine.hivedrum_trigger(context, VOICE.KICK);
 for (let block = 0; block < 4; block += 1) {
-  engine.hive_process(context, outPtr, BLOCK_FRAMES);
+  engine.hivedrum_process(context, outPtr, BLOCK_FRAMES);
 }
-levelsPtr = engine.hive_instrument_levels(context);
+levelsPtr = engine.hivedrum_instrument_levels(context);
 const kickLevel = readI32(levelsPtr);
 check(
   kickLevel > 0,
@@ -489,12 +489,12 @@ equal(
 
 /* The two hi-hat instruments share one voice, so they report the same
  * level: a hit on either of them lights both entries. */
-engine.hive_reset(context);
-engine.hive_trigger(context, INSTRUMENT.HIHAT_CLOSED);
+engine.hivedrum_reset(context);
+engine.hivedrum_trigger(context, INSTRUMENT.HIHAT_CLOSED);
 for (let block = 0; block < 4; block += 1) {
-  engine.hive_process(context, outPtr, BLOCK_FRAMES);
+  engine.hivedrum_process(context, outPtr, BLOCK_FRAMES);
 }
-levelsPtr = engine.hive_instrument_levels(context);
+levelsPtr = engine.hivedrum_instrument_levels(context);
 const closedLevel = readI32(levelsPtr + INSTRUMENT.HIHAT_CLOSED * 4);
 const openLevel = readI32(levelsPtr + INSTRUMENT.HIHAT_OPEN * 4);
 check(
@@ -508,13 +508,13 @@ equal(
 );
 
 /* The reset restores the factory parameters. */
-engine.hive_reset(context);
-engine.hive_get_param(context, VOICE.KICK, PARAM.TONE_PITCH, scratchPtr);
+engine.hivedrum_reset(context);
+engine.hivedrum_get_param(context, VOICE.KICK, PARAM.TONE_PITCH, scratchPtr);
 equal(readI32(scratchPtr), 40 * Q16, 'the reset restores the factory parameters');
 
 engine.free(outPtr);
 engine.free(scratchPtr);
-engine.hive_destroy(context);
+engine.hivedrum_destroy(context);
 
 if (failures > 0) {
   console.error(`\n${failures} check(s) failed`);

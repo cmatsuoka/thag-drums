@@ -1,8 +1,8 @@
 import './worklet-env';
-import createHiveModule, {
-  type HiveModule,
-  type HiveModuleOptions,
-} from '../../build/hive.mjs';
+import createHivedrumModule, {
+  type HivedrumModule,
+  type HivedrumModuleOptions,
+} from '../../build/hivedrum.mjs';
 import {
   FX_PARAM_COUNT,
   INSTRUMENT_COUNT,
@@ -63,14 +63,14 @@ interface WorkletOptions {
  * The module object the Emscripten runtime fills in while it starts up:
  * the exports and the heap views appear on the object that was handed in.
  */
-type MutableHiveModule = Partial<HiveModule> & HiveModuleOptions;
+type MutableHivedrumModule = Partial<HivedrumModule> & HivedrumModuleOptions;
 
 function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-class HiveProcessor extends AudioWorkletProcessor {
-  private module: HiveModule | null = null;
+class HivedrumProcessor extends AudioWorkletProcessor {
+  private module: HivedrumModule | null = null;
   private context = 0;
   private outPtr = 0;
   private samples: Int16Array | null = null;
@@ -161,7 +161,7 @@ class HiveProcessor extends AudioWorkletProcessor {
       return true;
     }
 
-    module._hive_process(this.context, this.outPtr, BLOCK_FRAMES);
+    module._hivedrum_process(this.context, this.outPtr, BLOCK_FRAMES);
 
       const left = output[0];
       const right = output[1] ?? output[0];
@@ -211,7 +211,7 @@ class HiveProcessor extends AudioWorkletProcessor {
   private build(wasmModule: WebAssembly.Module): void {
     this.building = true;
 
-    const module: MutableHiveModule = {
+    const module: MutableHivedrumModule = {
       instantiateWasm: (
         imports: WebAssembly.Imports,
         receiveInstance: (instance: WebAssembly.Instance) => WebAssembly.Exports,
@@ -222,14 +222,14 @@ class HiveProcessor extends AudioWorkletProcessor {
         return receiveInstance(instance);
       },
       onRuntimeInitialized: () => {
-        this.attach(module as HiveModule);
+        this.attach(module as HivedrumModule);
       },
     };
 
     try {
       // The runtime is already up when the call returns; the promise only
       // carries a failure that happened before the callback ran.
-      void createHiveModule(module).catch((error: unknown) => {
+      void createHivedrumModule(module).catch((error: unknown) => {
         this.emit({ type: 'error', message: describe(error) });
       });
     } catch (error: unknown) {
@@ -256,7 +256,7 @@ class HiveProcessor extends AudioWorkletProcessor {
       return;
     }
 
-    createHiveModule({ wasmBinary, locateFile: (path) => path })
+    createHivedrumModule({ wasmBinary, locateFile: (path) => path })
       .then((module) => {
         this.attach(module);
       })
@@ -268,9 +268,9 @@ class HiveProcessor extends AudioWorkletProcessor {
   /**
    * Take over the engine the runtime has just started.
    */
-  private attach(module: HiveModule): void {
+  private attach(module: HivedrumModule): void {
     // The engine runs at the rate of the graph, not at its own default.
-    const context = module._hive_create(sampleRate);
+    const context = module._hivedrum_create(sampleRate);
     if (context === 0) {
       this.queue.length = 0;
       this.emit({ type: 'error', message: 'could not allocate the engine context' });
@@ -283,7 +283,7 @@ class HiveProcessor extends AudioWorkletProcessor {
     const buffer = module.HEAPU8.buffer;
     this.samples = new Int16Array(buffer, this.outPtr, BLOCK_FRAMES * 2);
     this.heapBuffer = buffer;
-    this.version = module._hive_version_number();
+    this.version = module._hivedrum_version_number();
 
     this.emit({
       type: 'ready',
@@ -307,15 +307,15 @@ class HiveProcessor extends AudioWorkletProcessor {
 
     switch (command.type) {
       case 'param': {
-        module._hive_set_param(this.context, command.voice, command.param, command.value);
+        module._hivedrum_set_param(this.context, command.voice, command.param, command.value);
         break;
       }
       case 'fx': {
-        module._hive_set_fx_param(this.context, command.param, command.value);
+        module._hivedrum_set_fx_param(this.context, command.param, command.value);
         break;
       }
       case 'fxSend': {
-        module._hive_set_instrument_fx_send(this.context, command.instrument,
+        module._hivedrum_set_instrument_fx_send(this.context, command.instrument,
           command.value);
         break;
       }
@@ -327,7 +327,7 @@ class HiveProcessor extends AudioWorkletProcessor {
           if (value === undefined || param === undefined) {
             continue;
           }
-          module._hive_set_param(
+          module._hivedrum_set_param(
             this.context,
             command.voice,
             paramIndex(param),
@@ -337,14 +337,14 @@ class HiveProcessor extends AudioWorkletProcessor {
         break;
       }
       case 'trigger': {
-        module._hive_trigger_velocity(this.context, command.instrument,
+        module._hivedrum_trigger_velocity(this.context, command.instrument,
           command.velocity);
         break;
       }
       case 'reset': {
         /* The reset restores the factory parameters, the sensitivity
          * included. */
-        module._hive_reset(this.context);
+        module._hivedrum_reset(this.context);
         break;
       }
     }
@@ -371,7 +371,7 @@ class HiveProcessor extends AudioWorkletProcessor {
       return;
     }
 
-    const pointer = module._hive_instrument_levels(this.context);
+    const pointer = module._hivedrum_instrument_levels(this.context);
     const base = pointer >> 2;
     const heap = module.HEAP32;
     const fall = this.lampFall;
@@ -418,7 +418,7 @@ class HiveProcessor extends AudioWorkletProcessor {
       return [];
     }
 
-    const pointer = module._hive_param_info();
+    const pointer = module._hivedrum_param_info();
     const base = pointer >> 2;
     const heap = module.HEAP32;
     const info: ParamInfo[] = [];
@@ -432,7 +432,7 @@ class HiveProcessor extends AudioWorkletProcessor {
           min: heap[base + index] ?? 0,
           max: heap[base + index + 1] ?? 0,
           default: heap[base + index + 2] ?? 0,
-          supported: module._hive_param_supported(voice, param) !== 0,
+          supported: module._hivedrum_param_supported(voice, param) !== 0,
         });
       }
     }
@@ -450,10 +450,10 @@ class HiveProcessor extends AudioWorkletProcessor {
       return [];
     }
 
-    const pointer = module._hive_fx_param_info();
+    const pointer = module._hivedrum_fx_param_info();
     const base = pointer >> 2;
     const heap = module.HEAP32;
-    const count = module._hive_fx_param_count();
+    const count = module._hivedrum_fx_param_count();
     const info: FxParamInfo[] = [];
 
     for (let param = 0; param < count; param += 1) {
@@ -482,7 +482,7 @@ class HiveProcessor extends AudioWorkletProcessor {
       this.samples = new Int16Array(buffer, this.outPtr, BLOCK_FRAMES * 2);
     }
 
-    const pointer = module._hive_panel_state(this.context);
+    const pointer = module._hivedrum_panel_state(this.context);
     const base = pointer >> 2;
     const heap = module.HEAP32;
 
@@ -491,13 +491,13 @@ class HiveProcessor extends AudioWorkletProcessor {
       this.supported[index] = (heap[base + index * 2 + 1] ?? 0) !== 0 ? 1 : 0;
     }
 
-    const fxPointer = module._hive_fx_state(this.context);
+    const fxPointer = module._hivedrum_fx_state(this.context);
     const fxBase = fxPointer >> 2;
     for (let param = 0; param < FX_PARAM_COUNT; param += 1) {
       this.fx[param] = heap[fxBase + param] ?? 0;
     }
 
-    this.active = module._hive_is_active(this.context) !== 0;
+    this.active = module._hivedrum_is_active(this.context) !== 0;
 
     // A kit that has gone quiet is not sounding any more: no instrument
     // reports a level.
@@ -553,4 +553,4 @@ class HiveProcessor extends AudioWorkletProcessor {
   }
 }
 
-registerProcessor('hive-processor', HiveProcessor);
+registerProcessor('hivedrum-processor', HivedrumProcessor);

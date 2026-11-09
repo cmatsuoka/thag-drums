@@ -1,4 +1,4 @@
-import { HiveEngine } from './audio/engine';
+import { HivedrumEngine } from './audio/engine';
 import { attachKeyboard } from './audio/keyboard';
 import { MidiInput } from './audio/midi';
 import { createDemoStrip, type DemoStrip } from './ui/demo-strip';
@@ -11,7 +11,7 @@ import { createPanel } from './ui/panel';
  */
 declare global {
   interface Window {
-    hive?: HiveEngine;
+    hivedrum?: HivedrumEngine;
   }
 }
 
@@ -28,7 +28,7 @@ if (app === null) {
   throw new Error('the page is missing its #app element');
 }
 
-const engine = new HiveEngine();
+const engine = new HivedrumEngine();
 
 /* The page's heading. The console carries the module strips, and their
  * names are the headings below it. */
@@ -85,4 +85,4 @@ const wake = (): void => {
 window.addEventListener('pointerdown', wake);
 window.addEventListener('keydown', wake);
 
-window.hive = engine;
+window.hivedrum = engine;

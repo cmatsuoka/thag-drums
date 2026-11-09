@@ -1,4 +1,4 @@
-import type { HiveEngine } from '../audio/engine';
+import type { HivedrumEngine } from '../audio/engine';
 import type { MidiDevice } from '../audio/midi';
 import type { EngineState } from '../audio/protocol';
 
@@ -28,7 +28,7 @@ export interface DemoStrip {
 
 export function createDemoStrip(
   host: HTMLElement,
-  engine: HiveEngine,
+  engine: HivedrumEngine,
   options: DemoStripOptions,
 ): DemoStrip {
   const strip = document.createElement('section');
@@ -43,14 +43,14 @@ export function createDemoStrip(
   status.className = 'demo-status';
   status.id = 'engine-status';
   status.append('powered by ');
-  const libhiveLink = document.createElement('a');
-  libhiveLink.href = 'https://github.com/cmatsuoka/libhive';
+  const libhivedrumLink = document.createElement('a');
+  libhivedrumLink.href = 'https://github.com/cmatsuoka/hivedrum';
   /* The link leaves the demo in another tab: the page that plays the kit
    * must stay alive while the reader follows it. */
-  libhiveLink.target = '_blank';
-  libhiveLink.rel = 'noopener noreferrer';
-  libhiveLink.textContent = 'libhive';
-  status.append(libhiveLink);
+  libhivedrumLink.target = '_blank';
+  libhivedrumLink.rel = 'noopener noreferrer';
+  libhivedrumLink.textContent = 'libhivedrum';
+  status.append(libhivedrumLink);
   const version = document.createElement('span');
   status.append(version);
   strip.append(status);

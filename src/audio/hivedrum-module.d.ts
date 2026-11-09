@@ -1,74 +1,74 @@
-declare module '*hive.mjs' {
-  export interface HiveModule {
+declare module '*hivedrum.mjs' {
+  export interface HivedrumModule {
     HEAPU8: Uint8Array;
     HEAPU16: Uint16Array;
     HEAP32: Int32Array;
 
     _malloc(size: number): number;
     _free(ptr: number): void;
-    _hive_version_number(): number;
-    _hive_create(sampleRate: number): number;
-    _hive_destroy(ctx: number): void;
-    _hive_set_sample_rate(ctx: number, sampleRate: number): void;
-    _hive_reset(ctx: number): void;
-    _hive_set_param(
+    _hivedrum_version_number(): number;
+    _hivedrum_create(sampleRate: number): number;
+    _hivedrum_destroy(ctx: number): void;
+    _hivedrum_set_sample_rate(ctx: number, sampleRate: number): void;
+    _hivedrum_reset(ctx: number): void;
+    _hivedrum_set_param(
       ctx: number,
       voice: number,
       param: number,
       value: number,
     ): number;
-    _hive_get_param(
+    _hivedrum_get_param(
       ctx: number,
       voice: number,
       param: number,
       out: number,
     ): number;
-    _hive_param_supported(voice: number, param: number): number;
-    _hive_fx_param_count(): number;
-    _hive_set_fx_param(ctx: number, param: number, value: number): number;
-    _hive_get_fx_param(ctx: number, param: number, out: number): number;
-    _hive_fx_param_info(): number;
-    _hive_fx_state(ctx: number): number;
-    _hive_set_instrument_volume(
+    _hivedrum_param_supported(voice: number, param: number): number;
+    _hivedrum_fx_param_count(): number;
+    _hivedrum_set_fx_param(ctx: number, param: number, value: number): number;
+    _hivedrum_get_fx_param(ctx: number, param: number, out: number): number;
+    _hivedrum_fx_param_info(): number;
+    _hivedrum_fx_state(ctx: number): number;
+    _hivedrum_set_instrument_volume(
       ctx: number,
       instrument: number,
       value: number,
     ): number;
-    _hive_get_instrument_volume(
+    _hivedrum_get_instrument_volume(
       ctx: number,
       instrument: number,
       out: number,
     ): number;
-    _hive_set_instrument_pan(
+    _hivedrum_set_instrument_pan(
       ctx: number,
       instrument: number,
       value: number,
     ): number;
-    _hive_get_instrument_pan(
+    _hivedrum_get_instrument_pan(
       ctx: number,
       instrument: number,
       out: number,
     ): number;
-    _hive_set_instrument_fx_send(
+    _hivedrum_set_instrument_fx_send(
       ctx: number,
       instrument: number,
       value: number,
     ): number;
-    _hive_get_instrument_fx_send(
+    _hivedrum_get_instrument_fx_send(
       ctx: number,
       instrument: number,
       out: number,
     ): number;
-    _hive_trigger(ctx: number, instrument: number): number;
-    _hive_trigger_velocity(ctx: number, instrument: number, velocity: number): number;
-    _hive_process(ctx: number, out: number, frames: number): void;
-    _hive_is_active(ctx: number): number;
-    _hive_instrument_levels(ctx: number): number;
-    _hive_panel_state(ctx: number): number;
-    _hive_param_info(): number;
+    _hivedrum_trigger(ctx: number, instrument: number): number;
+    _hivedrum_trigger_velocity(ctx: number, instrument: number, velocity: number): number;
+    _hivedrum_process(ctx: number, out: number, frames: number): void;
+    _hivedrum_is_active(ctx: number): number;
+    _hivedrum_instrument_levels(ctx: number): number;
+    _hivedrum_panel_state(ctx: number): number;
+    _hivedrum_param_info(): number;
   }
 
-  export interface HiveModuleOptions {
+  export interface HivedrumModuleOptions {
     wasmBinary?: ArrayBuffer;
     noInitialRun?: boolean;
     print?: (text: string) => void;
@@ -92,8 +92,8 @@ declare module '*hive.mjs' {
     onRuntimeInitialized?: () => void;
   }
 
-  const createHiveModule: (
-    options?: HiveModuleOptions,
-  ) => Promise<HiveModule>;
-  export default createHiveModule;
+  const createHivedrumModule: (
+    options?: HivedrumModuleOptions,
+  ) => Promise<HivedrumModule>;
+  export default createHivedrumModule;
 }

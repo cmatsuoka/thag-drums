@@ -126,13 +126,13 @@ async function startServer() {
 
 /** The peak the engine reports, in the engine's own state. */
 async function readPeak(page) {
-  return page.evaluate(() => window.hive?.engineState?.peak ?? 0);
+  return page.evaluate(() => window.hivedrum?.engineState?.peak ?? 0);
 }
 
 /** Wait until the engine renders something louder than the given peak. */
 async function waitForPeak(page, minimum) {
   await page.waitForFunction(
-    (minimum) => (window.hive?.engineState?.peak ?? 0) > minimum,
+    (minimum) => (window.hivedrum?.engineState?.peak ?? 0) > minimum,
     minimum,
     { timeout: TIMEOUT },
   );
@@ -141,7 +141,7 @@ async function waitForPeak(page, minimum) {
 /** The values the engine holds, in the engine's own order. */
 async function readEngineValues(page) {
   return page.evaluate(() => {
-    const state = window.hive?.engineState;
+    const state = window.hivedrum?.engineState;
     return state === null || state === undefined
       ? null
       : Array.from(state.values);
@@ -154,7 +154,7 @@ async function readEngineValues(page) {
  */
 async function readEngineState(page) {
   return page.evaluate(() => {
-    const state = window.hive?.engineState;
+    const state = window.hivedrum?.engineState;
     return state === null || state === undefined
       ? null
       : {
@@ -169,7 +169,7 @@ async function readEngineState(page) {
  */
 async function readEngineFxState(page) {
   return page.evaluate(() => {
-    const state = window.hive?.engineState;
+    const state = window.hivedrum?.engineState;
     return state === null || state === undefined || !state.fx
       ? []
       : Array.from(state.fx);
@@ -194,7 +194,7 @@ async function measurePeak(page, durationMs) {
         let max = 0;
         const start = performance.now();
         const tick = () => {
-          const peak = window.hive?.engineState?.peak ?? 0;
+          const peak = window.hivedrum?.engineState?.peak ?? 0;
           if (peak > max) {
             max = peak;
           }
@@ -238,7 +238,7 @@ function engineIndex(voice, param) {
 async function waitForEngineValue(page, voice, param, expected) {
   await page.waitForFunction(
     ({ voice, param, expected, voices, params }) => {
-      const state = window.hive?.engineState;
+      const state = window.hivedrum?.engineState;
       if (state === null || state === undefined) {
         return false;
       }
@@ -254,7 +254,7 @@ async function waitForEngineValue(page, voice, param, expected) {
 async function waitForEngineValueChange(page, voice, param, previous) {
   await page.waitForFunction(
     ({ voice, param, previous, voices, params }) => {
-      const state = window.hive?.engineState;
+      const state = window.hivedrum?.engineState;
       if (state === null || state === undefined) {
         return false;
       }
@@ -292,7 +292,7 @@ try {
   await page.waitForFunction(
     () => {
       const status = document.querySelector('#engine-status');
-      return (status?.textContent ?? '').includes('libhive 0.');
+      return (status?.textContent ?? '').includes('libhivedrum 0.');
     },
     undefined,
     { timeout: TIMEOUT },
@@ -301,14 +301,14 @@ try {
    * built with: the panel may not make one up. */
   const status = await page.locator('#engine-status').textContent();
   const reported = await page.evaluate(() => {
-    const version = window.hive?.engineState?.version ?? 0;
+    const version = window.hivedrum?.engineState?.version ?? 0;
     const major = (version >> 16) & 0xff;
     const minor = (version >> 8) & 0xff;
     const patch = version & 0xff;
     return `${major}.${minor}.${patch}`;
   });
   check(
-    (status ?? '').includes(`libhive ${reported}`),
+    (status ?? '').includes(`libhivedrum ${reported}`),
     `the engine reports its version (${(status ?? '').trim()})`,
   );
 
@@ -599,7 +599,7 @@ try {
   );
   const tomDefault = await page.evaluate(
     ({ voice, param }) => {
-      const info = window.hive?.paramInfo ?? [];
+      const info = window.hivedrum?.paramInfo ?? [];
       const entry = info.find((e) => e.voice === voice && e.param === param);
       return entry?.default ?? null;
     },
@@ -683,7 +683,7 @@ try {
   const q16 = (value) => Math.round(value * 65536);
   const snareInfo = await page.evaluate(
     ({ voices, params }) => {
-      const info = window.hive?.paramInfo ?? [];
+      const info = window.hivedrum?.paramInfo ?? [];
       const voice = voices.indexOf('snare');
       const out = {};
       for (const entry of info) {
@@ -845,7 +845,7 @@ try {
   /* The other modules keep the factory values of the engine. */
   const kickInfo = await page.evaluate(
     ({ voices, params }) => {
-      const info = window.hive?.paramInfo ?? [];
+      const info = window.hivedrum?.paramInfo ?? [];
       const voice = voices.indexOf('kick');
       const out = {};
       for (const entry of info) {
@@ -959,7 +959,7 @@ try {
   await page.waitForFunction(
     () =>
       (document.querySelector('#engine-status')?.textContent ?? '').includes(
-        'libhive 0.',
+        'libhivedrum 0.',
       ),
     undefined,
     { timeout: TIMEOUT },
@@ -1014,14 +1014,14 @@ try {
   /* The lamp carries the level of the voice's own hit. */
   await page.waitForFunction(
     () => {
-      const state = window.hive?.engineState;
+      const state = window.hivedrum?.engineState;
       return (state?.levels?.[0] ?? 0) > 0;
     },
     undefined,
     { timeout: TIMEOUT },
   );
   const level = await page.evaluate(
-    () => window.hive?.engineState?.levels?.[0] ?? 0,
+    () => window.hivedrum?.engineState?.levels?.[0] ?? 0,
   );
   check(level > 0, `the lamp carries the level of the hit (${level})`);
 
@@ -1029,7 +1029,7 @@ try {
    * brightness on the faceplate is the level the engine reports. */
   await page.waitForFunction(
     () => {
-      const state = window.hive?.engineState;
+      const state = window.hivedrum?.engineState;
       const lamp = document.querySelector('#lamp-kick-trigger');
       const shown = Number(lamp?.style.getPropertyValue('--lamp-level') ?? '0');
       return (state?.lamp?.[0] ?? 0) > 0 && shown > 0;
@@ -1038,7 +1038,7 @@ try {
     { timeout: TIMEOUT },
   );
   const lampState = await page.evaluate(() => {
-    const state = window.hive?.engineState;
+    const state = window.hivedrum?.engineState;
     const lamp = document.querySelector('#lamp-kick-trigger');
     return {
       level: state?.levels?.[0] ?? 0,
@@ -1157,14 +1157,14 @@ try {
   /* The engine takes a whole tone at once. */
   await page.evaluate(() => {
     const values = [0, 55 * 65536, 0, 0, 0, 0];
-    window.hive?.setTone('kick', values);
+    window.hivedrum?.setTone('kick', values);
   });
   await waitForEngineValue(page, 'kick', 'tonePitch', 55 * 65536);
   check(true, 'the engine takes a whole tone at once');
 
   /* A value outside the range of the engine is shown clamped. */
   await page.evaluate(() => {
-    window.hive?.setParam('kick', 'tonePitch', 999999999);
+    window.hivedrum?.setParam('kick', 'tonePitch', 999999999);
   });
   const clamped = 440 * 65536;
   await waitForEngineValue(page, 'kick', 'tonePitch', clamped);
@@ -1196,25 +1196,25 @@ try {
    * at full strike level; with the sensitivity at the factory 1 the hit is
    * as quiet as its velocity. */
   await page.evaluate(() => {
-    window.hive?.setParam('kick', 'sensitivity', 0);
+    window.hivedrum?.setParam('kick', 'sensitivity', 0);
   });
   await waitForEngineValue(page, 'kick', 'sensitivity', 0);
   await page.evaluate(() => {
-    window.hive?.trigger('kick', 16);
+    window.hivedrum?.trigger('kick', 16);
   });
   const insensitivePeak = await measurePeak(page, 500);
 
   await page.locator('#reset').click();
   await waitForEngineValue(page, 'kick', 'sensitivity', 65536);
   await page.evaluate(() => {
-    window.hive?.trigger('kick', 16);
+    window.hivedrum?.trigger('kick', 16);
   });
   const softPeak = await measurePeak(page, 500);
 
   await page.locator('#reset').click();
   await waitForEngineValue(page, 'kick', 'sensitivity', 65536);
   await page.evaluate(() => {
-    window.hive?.trigger('kick', 127);
+    window.hivedrum?.trigger('kick', 127);
   });
   const fullPeak = await measurePeak(page, 500);
 
@@ -1244,7 +1244,7 @@ try {
   await waitForEngineValue(page, 'kick', 'sensitivity', 0);
   check(true, 'the sensitivity knob reaches the engine');
   await page.evaluate(() => {
-    window.hive?.trigger('kick', 16);
+    window.hivedrum?.trigger('kick', 16);
   });
   const viaKnobPeak = await measurePeak(page, 500);
   check(

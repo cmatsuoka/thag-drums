@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Thagomizer — browser recreation of a vintage analog percussion unit, powered by libhive",
+  "description": "Thagomizer — browser recreation of a vintage analog percussion unit, powered by libhivedrum",
   "license": "LGPL-3.0-or-later",
   "scripts": {
     "build:wasm": "bash scripts/build-wasm.sh",

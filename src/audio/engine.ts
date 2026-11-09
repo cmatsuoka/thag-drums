@@ -1,4 +1,4 @@
-import wasmUrl from '../../build/hive.wasm?url';
+import wasmUrl from '../../build/hivedrum.wasm?url';
 import workletUrl from './worklet.ts?worker&url';
 import {
   PARAM_COUNT,
@@ -40,7 +40,7 @@ function workletUnavailableReason(): string | null {
  * so every call to it happens on the audio thread. This class owns the
  * AudioContext, the graph and the messages.
  */
-export class HiveEngine {
+export class HivedrumEngine {
   private context: AudioContext | null = null;
   private node: AudioWorkletNode | null = null;
   private starting: Promise<void> | null = null;
@@ -331,12 +331,12 @@ export class HiveEngine {
     };
 
     try {
-      return new AudioWorkletNode(context, 'hive-processor', {
+      return new AudioWorkletNode(context, 'hivedrum-processor', {
         ...options,
         processorOptions: { wasmModule },
       });
     } catch {
-      return new AudioWorkletNode(context, 'hive-processor', {
+      return new AudioWorkletNode(context, 'hivedrum-processor', {
         ...options,
         processorOptions: { wasmBinary: bytes.slice(0) },
       });

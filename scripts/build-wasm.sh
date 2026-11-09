@@ -2,12 +2,12 @@
 #
 # Fetch the engine and build the wasm glue.
 #
-# The engine is libhive. Its sources are taken from LIBHIVE_SOURCE and copied
-# into LIBHIVE_DIR, where they are compiled. The source tree is never written
+# The engine is libhivedrum. Its sources are taken from HIVEDRUM_SOURCE and copied
+# into HIVEDRUM_DIR, where they are compiled. The source tree is never written
 # to: it may be a checkout that belongs to somebody else.
 #
-# The source is the pinned commit, fetched into vendor/libhive-src unless
-# LIBHIVE_SOURCE points at another checkout. Update LIBHIVE_COMMIT
+# The source is the pinned commit, fetched into vendor/libhivedrum-src unless
+# HIVEDRUM_SOURCE points at another checkout. Update HIVEDRUM_COMMIT
 # deliberately.
 #
 # The library is built with its own warning set, so the build fails when the
@@ -16,12 +16,12 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-LIBHIVE_REPO="${LIBHIVE_REPO:-https://github.com/cmatsuoka/libhive.git}"
-LIBHIVE_COMMIT="${LIBHIVE_COMMIT:-0ca3a21895a95b612746071552be386a7b1a3ae0}"
+HIVEDRUM_REPO="${HIVEDRUM_REPO:-https://github.com/cmatsuoka/hivedrum}"
+HIVEDRUM_COMMIT="${HIVEDRUM_COMMIT:-9a26a272daf30cb3ce65053e393e25230cb2b882}"
 # The pristine sources the build is made from.
-LIBHIVE_SOURCE="${LIBHIVE_SOURCE:-$ROOT/vendor/libhive-src}"
+HIVEDRUM_SOURCE="${HIVEDRUM_SOURCE:-$ROOT/vendor/libhivedrum-src}"
 # The sources the build actually compiles: a copy of the sources above.
-LIBHIVE_DIR="${LIBHIVE_DIR:-$ROOT/vendor/libhive}"
+HIVEDRUM_DIR="${HIVEDRUM_DIR:-$ROOT/vendor/libhivedrum}"
 EMCC="${EMCC:-emcc}"
 OUT_DIR="$ROOT/build"
 
@@ -39,58 +39,58 @@ EOF
 fi
 
 # Where the pristine sources come from.
-if [ ! -f "$LIBHIVE_SOURCE/include/h5.h" ]; then
+if [ ! -f "$HIVEDRUM_SOURCE/include/h5.h" ]; then
     # No local checkout: fetch the pinned commit.
-    if [ ! -d "$LIBHIVE_SOURCE/.git" ]; then
-        mkdir -p "$(dirname "$LIBHIVE_SOURCE")"
-        git clone "$LIBHIVE_REPO" "$LIBHIVE_SOURCE"
+    if [ ! -d "$HIVEDRUM_SOURCE/.git" ]; then
+        mkdir -p "$(dirname "$HIVEDRUM_SOURCE")"
+        git clone "$HIVEDRUM_REPO" "$HIVEDRUM_SOURCE"
     fi
 
-    if ! git -C "$LIBHIVE_SOURCE" fetch --depth 1 origin "$LIBHIVE_COMMIT"; then
+    if ! git -C "$HIVEDRUM_SOURCE" fetch --depth 1 origin "$HIVEDRUM_COMMIT"; then
         cat >&2 <<EOF
 error: the pinned engine commit could not be fetched.
 
-  $LIBHIVE_COMMIT
+  $HIVEDRUM_COMMIT
 
 The commit has to be in the upstream repository:
 
-  git -C $LIBHIVE_SOURCE fetch origin $LIBHIVE_COMMIT
+  git -C $HIVEDRUM_SOURCE fetch origin $HIVEDRUM_COMMIT
 
 A local checkout of the library can be used instead:
 
-  LIBHIVE_SOURCE=/path/to/libhive npm run build:wasm
+  HIVEDRUM_SOURCE=/path/to/libhivedrum npm run build:wasm
 EOF
         exit 1
     fi
     # The checkout is forced, so a tree that has drifted from the pinned
     # commit cannot leak into the build.
-    git -C "$LIBHIVE_SOURCE" checkout --force --detach "$LIBHIVE_COMMIT"
+    git -C "$HIVEDRUM_SOURCE" checkout --force --detach "$HIVEDRUM_COMMIT"
 fi
 
-if [ ! -d "$LIBHIVE_SOURCE/src" ]; then
-    echo "error: the library sources are missing: $LIBHIVE_SOURCE" >&2
+if [ ! -d "$HIVEDRUM_SOURCE/src" ]; then
+    echo "error: the library sources are missing: $HIVEDRUM_SOURCE" >&2
     exit 1
 fi
 
 # The build compiles a copy of the sources, so the checkout the sources
 # come from stays untouched.
-if [ -e "$LIBHIVE_DIR/.git" ]; then
+if [ -e "$HIVEDRUM_DIR/.git" ]; then
     cat >&2 <<EOF
-error: LIBHIVE_DIR ($LIBHIVE_DIR) is a git checkout.
+error: HIVEDRUM_DIR ($HIVEDRUM_DIR) is a git checkout.
 
-LIBHIVE_DIR is the build copy, not the source. Point LIBHIVE_SOURCE at the
+HIVEDRUM_DIR is the build copy, not the source. Point HIVEDRUM_SOURCE at the
 sources instead:
 
-  LIBHIVE_SOURCE=$LIBHIVE_DIR npm run build:wasm
+  HIVEDRUM_SOURCE=$HIVEDRUM_DIR npm run build:wasm
 EOF
     exit 1
 fi
-rm -rf "$LIBHIVE_DIR"
-mkdir -p "$LIBHIVE_DIR"
-cp -R "$LIBHIVE_SOURCE/include" "$LIBHIVE_DIR/include"
-cp -R "$LIBHIVE_SOURCE/src" "$LIBHIVE_DIR/src"
-if [ -f "$LIBHIVE_SOURCE/LICENSE" ]; then
-    cp "$LIBHIVE_SOURCE/LICENSE" "$LIBHIVE_DIR/LICENSE"
+rm -rf "$HIVEDRUM_DIR"
+mkdir -p "$HIVEDRUM_DIR"
+cp -R "$HIVEDRUM_SOURCE/include" "$HIVEDRUM_DIR/include"
+cp -R "$HIVEDRUM_SOURCE/src" "$HIVEDRUM_DIR/src"
+if [ -f "$HIVEDRUM_SOURCE/LICENSE" ]; then
+    cp "$HIVEDRUM_SOURCE/LICENSE" "$HIVEDRUM_DIR/LICENSE"
 fi
 
 mkdir -p "$OUT_DIR"
@@ -100,7 +100,7 @@ mkdir -p "$OUT_DIR"
 # h5_version_number().
 read_version() {
     awk -v key="$1" '$1 == "#define" && $2 == key { print $3; exit }' \
-        "$LIBHIVE_DIR/include/h5.h"
+        "$HIVEDRUM_DIR/include/h5.h"
 }
 
 VERSION_MAJOR="$(read_version H5_VERSION_MAJOR)"
@@ -108,7 +108,7 @@ VERSION_MINOR="$(read_version H5_VERSION_MINOR)"
 VERSION_PATCH="$(read_version H5_VERSION_PATCH)"
 
 if [ -z "$VERSION_MAJOR" ] || [ -z "$VERSION_MINOR" ] || [ -z "$VERSION_PATCH" ]; then
-    echo "error: could not read the library version from $LIBHIVE_DIR/include/h5.h" >&2
+    echo "error: could not read the library version from $HIVEDRUM_DIR/include/h5.h" >&2
     exit 1
 fi
 
@@ -123,12 +123,12 @@ fi
 # The metallic engines are compiled in, the way the library's own Makefile
 # compiles them: the Hi-hat and the Cymbal are two voices of the library.
 # Without the definitions they would stay in the API and render silence.
-ENGINE_DEFS="-DLIBHIVE_ENGINE_HIHAT -DLIBHIVE_ENGINE_CYMBAL"
+ENGINE_DEFS="-DHIVEDRUM_H5_ENGINE_HIHAT -DHIVEDRUM_H5_ENGINE_CYMBAL"
 
 # The FX bus is compiled in, the way the library's own Makefile does: without
 # the reverb the bus renders silence and its parameters report themselves
 # unsupported, so the effects module of the panel would do nothing.
-FX_DEFS="-DLIBHIVE_FX_REVERB -DLIBHIVE_FX_NOISE_GATE"
+FX_DEFS="-DHIVEDRUM_FX_REVERB -DHIVEDRUM_FX_NOISE_GATE"
 
 # Only the glue is exported. The allocator stays on: the library calls
 # calloc() for its context and malloc() for its sine table.
@@ -138,24 +138,24 @@ FX_DEFS="-DLIBHIVE_FX_REVERB -DLIBHIVE_FX_NOISE_GATE"
 # resolve that: the whole worklet module would fail to evaluate. The Node
 # smoke test instantiates the wasm binary directly instead of importing
 # the glue.
-EXPORTED_FUNCTIONS='["_malloc","_free","_hive_version_number","_hive_create","_hive_destroy","_hive_set_sample_rate","_hive_reset","_hive_set_param","_hive_get_param","_hive_param_supported","_hive_fx_param_count","_hive_set_fx_param","_hive_get_fx_param","_hive_set_instrument_volume","_hive_get_instrument_volume","_hive_set_instrument_pan","_hive_get_instrument_pan","_hive_set_instrument_fx_send","_hive_get_instrument_fx_send","_hive_trigger","_hive_trigger_velocity","_hive_process","_hive_is_active","_hive_instrument_levels","_hive_panel_state","_hive_fx_state","_hive_fx_param_info","_hive_param_info"]'
+EXPORTED_FUNCTIONS='["_malloc","_free","_hivedrum_version_number","_hivedrum_create","_hivedrum_destroy","_hivedrum_set_sample_rate","_hivedrum_reset","_hivedrum_set_param","_hivedrum_get_param","_hivedrum_param_supported","_hivedrum_fx_param_count","_hivedrum_set_fx_param","_hivedrum_get_fx_param","_hivedrum_set_instrument_volume","_hivedrum_get_instrument_volume","_hivedrum_set_instrument_pan","_hivedrum_get_instrument_pan","_hivedrum_set_instrument_fx_send","_hivedrum_get_instrument_fx_send","_hivedrum_trigger","_hivedrum_trigger_velocity","_hivedrum_process","_hivedrum_is_active","_hivedrum_instrument_levels","_hivedrum_panel_state","_hivedrum_fx_state","_hivedrum_fx_param_info","_hivedrum_param_info"]'
 
 # shellcheck disable=SC2086
 "$EMCC" \
-    "$ROOT/wasm/hive_wasm.c" \
-    "$LIBHIVE_DIR"/src/*.c \
-    -I"$LIBHIVE_DIR/include" \
-    -I"$LIBHIVE_DIR/src" \
+    "$ROOT/wasm/hivedrum_wasm.c" \
+    "$HIVEDRUM_DIR"/src/*.c \
+    -I"$HIVEDRUM_DIR/include" \
+    -I"$HIVEDRUM_DIR/src" \
     -std=c99 -O2 \
     -Wall -Wextra -Werror \
     $ENGINE_DEFS \
     $FX_DEFS \
     $FLOAT_WARN \
     --no-entry \
-    -o "$OUT_DIR/hive.mjs" \
+    -o "$OUT_DIR/hivedrum.mjs" \
     -sMODULARIZE=1 \
     -sEXPORT_ES6=1 \
-    -sEXPORT_NAME=createHiveModule \
+    -sEXPORT_NAME=createHivedrumModule \
     -sENVIRONMENT=worker \
     -sFILESYSTEM=0 \
     -sMALLOC=emmalloc \
@@ -165,4 +165,4 @@ EXPORTED_FUNCTIONS='["_malloc","_free","_hive_version_number","_hive_create","_h
     -sEXPORTED_FUNCTIONS="$EXPORTED_FUNCTIONS" \
     -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAPU16,HEAP32
 
-echo "built $OUT_DIR/hive.mjs and $OUT_DIR/hive.wasm (libhive ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH})"
+echo "built $OUT_DIR/hivedrum.mjs and $OUT_DIR/hivedrum.wasm (libhivedrum ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH})"
