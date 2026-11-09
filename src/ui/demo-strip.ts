@@ -42,7 +42,17 @@ export function createDemoStrip(
   const status = document.createElement('p');
   status.className = 'demo-status';
   status.id = 'engine-status';
-  status.textContent = 'powered by libhive';
+  status.append('powered by ');
+  const libhiveLink = document.createElement('a');
+  libhiveLink.href = 'https://github.com/cmatsuoka/libhive';
+  /* The link leaves the demo in another tab: the page that plays the kit
+   * must stay alive while the reader follows it. */
+  libhiveLink.target = '_blank';
+  libhiveLink.rel = 'noopener noreferrer';
+  libhiveLink.textContent = 'libhive';
+  status.append(libhiveLink);
+  const version = document.createElement('span');
+  status.append(version);
   strip.append(status);
 
   const error = document.createElement('p');
@@ -102,7 +112,7 @@ export function createDemoStrip(
     const major = (state.version >> 16) & 0xff;
     const minor = (state.version >> 8) & 0xff;
     const patch = state.version & 0xff;
-    status.textContent = `powered by libhive ${major}.${minor}.${patch}`;
+    version.textContent = ` ${major}.${minor}.${patch}`;
   };
 
   const unsubscribe = engine.onState((state) => {
