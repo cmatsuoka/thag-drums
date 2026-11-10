@@ -233,16 +233,25 @@ export function createPanel(host: HTMLElement, engine: HivedrumEngine): Panel {
    * lamp of the module. */
   const soundingFlags = new Map<Voice, boolean>();
 
-  /* The owner of the blink of the lamp of a module.
+  /* The control that holds the lamp of a module.
    *
    * The reset button and the four memory buttons of a module share the
    * one lamp of the module, and every one of them may blink it while it
-   * is held. The blink therefore has an owner: the control that armed
-   * it. A control that lets go — or that loses the focus, as the reset
-   * does when a memory button is pressed — may only put the blink out
-   * while it still owns it, or it would put out the blink of the button
-   * that is being held at that moment. */
-  const blinkOwners = new Map<Voice, object>();
+   * is held. Only one of them may hold the module at a time: a control
+   * that starts a hold interrupts the hold in course, even if the
+   * previous button is still depressed, so the module never runs two
+   * holds at once. The hold is an owner plus the function that stops the
+   * control that started it. */
+  const blinkHolds = new Map<Voice, { owner: object; cancel: () => void }>();
+
+  /* How many holds a module has started.
+   *
+   * A control captures the number when it starts its hold. A control
+   * that starts a later hold bumps it, so an older button whose release
+   * comes after the new hold — even one that had already lost the focus
+   * and dropped out of `blinkHolds` — can tell that it was superseded
+   * and must not pick its position on release. */
+  const holdGenerations = new Map<Voice, number>();
 
   /* The channel of every module: the mixer of the voice and its effects
    * send. They belong to the module and not to the tone in it, so they
@@ -490,9 +499,11 @@ export function createPanel(host: HTMLElement, engine: HivedrumEngine): Panel {
    *
    * The tone in the module is the tone the engine plays. When it differs
    * from the tone in the position the module is playing, the
-   * configuration is not stored yet: the lamp of the module stays on at
-   * a low light, and the user has to hold the button of a position down
-   * to store it.
+   * configuration is not stored yet: the lamp of the module flashes once
+   * in every cycle of its own rhythm, briefly, and is dark for the rest
+   * of the cycle, so the flash keeps coming back while the tone is
+   * unsaved. The user has to hold the button of a position down to store
+   * it.
    *
    * The lamp is only written when it changes: the engine reports its
    * values twenty times a second, and a knob that is dragged reports one
@@ -603,30 +614,51 @@ export function createPanel(host: HTMLElement, engine: HivedrumEngine): Panel {
   /**
    * Arm the blink of the lamp of a module.
    *
-   * The control that arms the blink owns it: it is the only one that may
-   * put it out again.
+   * A hold that is in course is interrupted first: the module runs one
+   * hold at a time, and a new control takes the lamp over from the one
+   * that was holding it, even if that button is still depressed. The
+   * control that started the hold owns it, and only that control may put
+   * it out again.
+   *
+   * Every hold bumps the generation of the module and the new one is
+   * returned, so the caller can tell on release whether a later hold has
+   * superseded it.
    */
-  function armBlink(voice: Voice, lamp: HTMLElement, owner: object): void {
-    blinkOwners.set(voice, owner);
+  function armBlink(
+    voice: Voice,
+    lamp: HTMLElement,
+    owner: object,
+    cancel: () => void,
+  ): number {
+    const current = blinkHolds.get(voice);
+    if (current !== undefined && current.owner !== owner) {
+      current.cancel();
+    }
+    const generation = (holdGenerations.get(voice) ?? 0) + 1;
+    holdGenerations.set(voice, generation);
+    blinkHolds.set(voice, { owner, cancel });
     lamp.classList.add('is-blinking');
+    return generation;
   }
 
   /**
    * Put the blink of the lamp of a module out.
    *
-   * The blink is only put out by the control that owns it: the reset and
+   * The blink is only put out by the control that holds it: the reset and
    * the memory buttons of a module share the one lamp, and the release of
-   * one of them must not put out the blink of the other.
+   * one of them must not put out the blink of the control that has taken
+   * the module over.
    */
   function releaseBlink(
     voice: Voice,
     lamp: HTMLElement,
     owner: object,
   ): void {
-    if (blinkOwners.get(voice) !== owner) {
+    const current = blinkHolds.get(voice);
+    if (current === undefined || current.owner !== owner) {
       return;
     }
-    blinkOwners.delete(voice);
+    blinkHolds.delete(voice);
     lamp.classList.remove('is-blinking');
   }
 
@@ -653,6 +685,12 @@ export function createPanel(host: HTMLElement, engine: HivedrumEngine): Panel {
     /* Whether the last hold stored the tone: the click that follows it
      * must not pick the position as well. */
     let stored = false;
+    /* Whether this button started a hold, and the hold generation it
+     * captured when it did. A release whose generation is no longer the
+     * module's was superseded by a later hold and must not pick the
+     * position. */
+    let armed = false;
+    let generation = 0;
     /* The owner of the blink of the lamp, while this button holds it. */
     const owner = {};
 
@@ -670,8 +708,9 @@ export function createPanel(host: HTMLElement, engine: HivedrumEngine): Panel {
         return;
       }
       stored = false;
+      armed = true;
       button.classList.add('is-armed');
-      armBlink(voice, lamp, owner);
+      generation = armBlink(voice, lamp, owner, stop);
       timer = window.setTimeout(() => {
         timer = null;
         stored = true;
@@ -679,6 +718,11 @@ export function createPanel(host: HTMLElement, engine: HivedrumEngine): Panel {
         stop();
       }, MEMORY_HOLD_MS);
     };
+
+    /* Whether the release of this button was superseded by a later hold
+     * of the module. */
+    const superseded = (): boolean =>
+      armed && generation !== (holdGenerations.get(voice) ?? 0);
 
     button.addEventListener('pointerdown', (event) => {
       if (event.button !== 0) {
@@ -695,10 +739,13 @@ export function createPanel(host: HTMLElement, engine: HivedrumEngine): Panel {
     }
 
     button.addEventListener('click', () => {
-      if (stored) {
-        /* The hold stored the tone: the click that comes with the
-         * release must not pick the position as well. */
-        stored = false;
+      const skip = stored || superseded();
+      /* The hold stored the tone, or a later hold took the module over:
+       * the click that comes with the release must not pick the position
+       * as well. */
+      stored = false;
+      armed = false;
+      if (skip) {
         return;
       }
       selectMemory(voice, position);
@@ -717,10 +764,11 @@ export function createPanel(host: HTMLElement, engine: HivedrumEngine): Panel {
         return;
       }
       event.preventDefault();
-      const held = stored;
+      const skip = stored || superseded();
       stored = false;
+      armed = false;
       stop();
-      if (!held) {
+      if (!skip) {
         selectMemory(voice, position);
       }
     });
@@ -761,7 +809,7 @@ export function createPanel(host: HTMLElement, engine: HivedrumEngine): Panel {
         return;
       }
       button.classList.add('is-armed');
-      armBlink(voice, lamp, owner);
+      armBlink(voice, lamp, owner, stop);
       timer = window.setTimeout(() => {
         timer = null;
         resetVoice(voice);

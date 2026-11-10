@@ -324,8 +324,7 @@ body {
 /* the indicator lamps */
 .lamp {
   --lamp-level: 0;
-  /* The glow of the lamp: the light of the instrument of the module, or
-   * the low light of a module whose tone is not stored. */
+  /* The glow of the lamp: the light of the instrument of the module. */
   --lamp-glow: 0;
   position: relative;
   /* The light of the lamp is added to the glass of the bulb and not to
