@@ -67,7 +67,7 @@ export function createHelp(): HTMLElement {
   details.append(body);
 
   /* The keys of the keyboard. */
-  const keys = section('The keys of the keyboard');
+  const keys = section('Playing with the keyboard');
   const keyList = document.createElement('dl');
   keyList.className = 'help-keys';
   for (const entry of keyEntries()) {
@@ -88,7 +88,7 @@ export function createHelp(): HTMLElement {
   body.append(keys);
 
   /* The memory positions of a module. */
-  const memory = section('The memory positions of a module');
+  const memory = section('Memory positions of a module');
   const memoryList = document.createElement('ul');
   memoryList.className = 'help-list';
   const points: readonly string[] = [
@@ -108,12 +108,13 @@ export function createHelp(): HTMLElement {
   body.append(memory);
 
   /* The other trigger sources. */
-  const other = section('The other ways to play');
+  const other = section('Other ways to play');
   const otherList = document.createElement('ul');
   otherList.className = 'help-list';
   const others: readonly string[] = [
     'The trigger button in each module plays its instrument.',
     'A MIDI controller may be connected; the velocity of the note is the strength of the hit.',
+    'Certain keys are repeated to make flams easier.',
   ];
   for (const point of others) {
     const item = document.createElement('li');
