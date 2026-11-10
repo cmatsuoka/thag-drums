@@ -645,6 +645,39 @@ try {
     'a hold on the reset puts the knobs back to their defaults',
   );
 
+  /* The reset and the memory buttons of a module share the one lamp of
+   * the module, and the release of one of them must not put out the
+   * blink of the other: a hold of a memory button right after a hold of
+   * the reset still blinks the lamp. */
+  const tomMemory = page.locator(
+    '.strip[data-voice="tom1"] .strip-mem[data-position="2"]',
+  );
+  const tomMemoryBox = await tomMemory.boundingBox();
+  await page.mouse.move(
+    tomMemoryBox.x + tomMemoryBox.width / 2,
+    tomMemoryBox.y + tomMemoryBox.height / 2,
+  );
+  await page.mouse.down();
+  await page.waitForTimeout(200);
+  check(
+    await page.evaluate(
+      () =>
+        document
+          .querySelector('#lamp-tom1-trigger')
+          ?.classList.contains('is-blinking') === true,
+    ),
+    'the lamp of the module blinks while a memory button is held right after the reset',
+  );
+  await page.mouse.up();
+  await page.waitForTimeout(200);
+
+  /* The press picked the second position of the module: the first one is
+   * picked again, so the module is left where it was. */
+  await page
+    .locator('.strip[data-voice="tom1"] .strip-mem[data-position="1"]')
+    .click();
+  await page.waitForTimeout(200);
+
   /* The memory positions of a module: one of them is always selected,
    * and the selected one is the tone the engine is playing. */
   const selectedMemory = async (voice) =>
@@ -878,7 +911,7 @@ try {
   );
 
   /* The tone of the module is not stored in the position it plays: the
-   * lamp of the module says so with a low light. */
+   * lamp of the module says so with a rhythm of its own. */
   check(
     await page.evaluate(
       () =>
@@ -886,7 +919,63 @@ try {
           .querySelector('#lamp-snare-trigger')
           ?.classList.contains('is-dirty') === true,
     ),
-    'the lamp of the module stays on while the tone is not stored',
+    'the lamp of the module says so while the tone is not stored',
+  );
+
+  /* The mark of the unsaved tone flashes in its own rhythm: the lamp
+   * burns for a moment and is dark for the rest of its cycle. The light
+   * of the lamp is a layer of its own, so the rhythm is read on that
+   * layer and not on the bulb. */
+  const unsavedRhythm = await page.evaluate(async () => {
+    const lamp = document.querySelector('#lamp-snare-trigger');
+    const samples = [];
+    for (let i = 0; i < 60; i += 1) {
+      const light = getComputedStyle(lamp, '::after');
+      samples.push(Number(light.opacity) < 0.5 ? 0 : 1);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    return samples;
+  });
+  /* The rhythm is mostly dark, with a short run of light in it: the
+   * lamp is out of sight for most of the cycle, and the flash is the
+   * mark. */
+  const darkSamples = unsavedRhythm.filter((value) => value === 0).length;
+  const lightSamples = unsavedRhythm.length - darkSamples;
+  check(lightSamples > 0, 'the lamp of the unsaved tone flashes');
+  check(
+    darkSamples > lightSamples * 2,
+    'the lamp of the unsaved tone is dark for most of its cycle',
+  );
+
+  /* The lamp is a filament and not an LED: the light of the flash does
+   * not stop the instant the lamp is switched off, it dies away over a
+   * frame or two. The fall is read on every animation frame. */
+  const unsavedFall = await page.evaluate(async () => {
+    const lamp = document.querySelector('#lamp-snare-trigger');
+    const samples = [];
+    const start = performance.now();
+    await new Promise((resolve) => {
+      function tick() {
+        const light = getComputedStyle(lamp, '::after');
+        samples.push(Number(light.opacity));
+        if (performance.now() - start < 1400) {
+          requestAnimationFrame(tick);
+        } else {
+          resolve();
+        }
+      }
+      requestAnimationFrame(tick);
+    });
+    return samples;
+  });
+  /* Between the lit frames and the dark ones there is a step of light in
+   * between: the residual of the filament as it cools down. */
+  const fading = unsavedFall.filter(
+    (value) => value > 0.05 && value < 0.95,
+  );
+  check(
+    fading.length > 0,
+    'the light of the unsaved flash dies away instead of stopping at once',
   );
 
   await snareMemory(1).click();
@@ -937,6 +1026,23 @@ try {
           ?.classList.contains('is-blinking') === true,
     ),
     'the lamp of the module blinks while a memory button is held',
+  );
+  /* A lamp is a lamp and not an RGB led: between the blinks the light
+   * of the lamp is out and not merely dim, so the lamp shows its dark
+   * glass and never another colour. */
+  const holdRhythm = await page.evaluate(async () => {
+    const lamp = document.querySelector('#lamp-snare-trigger');
+    const samples = [];
+    for (let i = 0; i < 40; i += 1) {
+      const light = getComputedStyle(lamp, '::after');
+      samples.push(Number(light.opacity) < 0.5 ? 0 : 1);
+      await new Promise((resolve) => setTimeout(resolve, 30));
+    }
+    return samples;
+  });
+  check(
+    holdRhythm.includes(0) && holdRhythm.includes(1),
+    'the light of the lamp goes out between the blinks of a hold',
   );
   await page.waitForTimeout(1200);
   await page.mouse.up();
@@ -1321,6 +1427,43 @@ try {
   );
 
   equal(consoleErrors.length, 0, 'the page logs no errors');
+
+  /* The rhythms of the lamps carry meaning, so the panel ignores the
+   * browser's "reduce motion" setting: the lamps animate either way. */
+  const reduced = await browser.newContext({ reducedMotion: 'reduce' });
+  try {
+    const reducedPage = await reduced.newPage();
+    await reducedPage.goto(URL);
+    await reducedPage.waitForFunction(
+      () =>
+        (document.querySelector('#engine-status')?.textContent ?? '').includes(
+          'libhivedrum 0.',
+        ),
+      undefined,
+      { timeout: 30000 },
+    );
+    await reducedPage.waitForTimeout(500);
+    await reducedPage
+      .locator('.strip[data-voice="snare"] .knob[data-param="tonePitch"]')
+      .press('ArrowUp');
+    await reducedPage.waitForTimeout(300);
+    const reducedRhythm = await reducedPage.evaluate(async () => {
+      const lamp = document.querySelector('#lamp-snare-trigger');
+      const samples = [];
+      for (let i = 0; i < 60; i += 1) {
+        const light = getComputedStyle(lamp, '::after');
+        samples.push(Number(light.opacity) < 0.5 ? 0 : 1);
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      return samples;
+    });
+    check(
+      reducedRhythm.includes(0) && reducedRhythm.includes(1),
+      'the lamp of the unsaved tone flashes under prefers-reduced-motion',
+    );
+  } finally {
+    await reduced.close();
+  }
 } finally {
   await browser.close();
   server.kill();

@@ -93,11 +93,11 @@ export function createHelp(): HTMLElement {
   memoryList.className = 'help-list';
   const points: readonly string[] = [
     'A short press on the button of a position picks it and brings back the tone that is stored in it.',
-    'A long press — a second, with the lamp of the module blinking — stores the tone the module is playing in that position.',
+    'A long press stores the tone the module is playing in that position.',
     'The knobs of the module change the tone it plays, and the tone is not stored until a position is held down. A tone that is not stored is lost when another position is picked.',
     'A position that holds a tone of your own shows it with a number in a darker ink.',
     'The reset button of the module puts the position that is picked back to its built-in tone. The mixer of the module keeps the values you have set.',
-    'The memories are kept in the browser, so the kit comes back the way you left it.',
+    'Memories are kept in the browser, so the kit comes back the way you left it.',
   ];
   for (const point of points) {
     const item = document.createElement('li');
@@ -112,7 +112,7 @@ export function createHelp(): HTMLElement {
   const otherList = document.createElement('ul');
   otherList.className = 'help-list';
   const others: readonly string[] = [
-    'The small button at the foot of a module plays its own voice.',
+    'The trigger button in each module plays its instrument.',
     'A MIDI controller may be connected; the velocity of the note is the strength of the hit.',
   ];
   for (const point of others) {

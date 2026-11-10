@@ -20,6 +20,17 @@
   --lamp-on: 245 50 20;
   --lamp-core: 255 140 110;
 
+  /* The rhythms of the lamp of a module.
+   *
+   * A hold of the reset and a hold of a memory button blink the lamp the
+   * same way: the same cycle, the same number of blinks, so a hold is a
+   * hold wherever it happens. The tone that is not stored flashes the
+   * lamp once and leaves it dark, in another rhythm, so the two are
+   * never mistaken for one another. */
+  --blink-cycle: 0.33s;
+  --blink-count: 3;
+  --blink-unsaved-cycle: 1.8s;
+
   /* the case the module plates are screwed into */
   --case-hi: #3a3e42;
   --case-mid: #2a2d30;
@@ -316,9 +327,15 @@ body {
   /* The glow of the lamp: the light of the instrument of the module, or
    * the low light of a module whose tone is not stored. */
   --lamp-glow: 0;
+  position: relative;
+  /* The light of the lamp is added to the glass of the bulb and not to
+   * the plate behind it: the lamp is a world of its own. */
+  isolation: isolate;
   width: 12px;
   height: 12px;
   border-radius: 50%;
+  /* The glass of the bulb. It is there whether the lamp burns or not: an
+   * unlit lamp is a dark bulb and not a hole in the plate. */
   background: radial-gradient(
     circle at 34% 28%,
     rgb(var(--lamp-glass)),
@@ -330,58 +347,71 @@ body {
 }
 
 /*
+ * The light of the lamp is a layer of its own on top of the glass of the
+ * bulb, the way a lit lamp adds light to what is behind it. The layer is
+ * what goes out: a lamp is a lamp and not an RGB led, so it burns in one
+ * colour or it is dark — never a dimmed lamp of another colour.
+ */
+.lamp::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 34% 28%,
+    rgb(var(--lamp-core) / var(--lamp-glow)),
+    rgb(var(--lamp-on) / var(--lamp-glow)) 66%
+  );
+  mix-blend-mode: plus-lighter;
+  box-shadow:
+    0 0 calc(8px * var(--lamp-glow)) rgb(var(--lamp-on) / 0.75),
+    inset 0 1px 2px rgba(255, 255, 255, calc(0.6 * var(--lamp-glow)));
+  opacity: 0;
+}
+
+/*
  * A lit lamp is a red lamp, and its light is the signal of its own
  * instrument: the emission is proportional to the level, so a quiet
- * instrument glows faintly and a loud one burns. The light is added to
- * the glass of the bulb, the way a lit lamp adds light to what is behind
- * it, so the lamp keeps its shape and never disappears from the panel.
+ * instrument glows faintly and a loud one burns.
  *
  * The level comes in raw from the engine; the eye needs a louder curve
  * than that to see a light at all, so the glow is derived from the
  * level with a floor and a steep slope. `--lamp-level` itself stays
  * the engine's value.
  */
-.lamp.is-lit,
-.lamp.is-dirty {
-  background:
-    radial-gradient(
-      circle at 34% 28%,
-      rgb(var(--lamp-core) / var(--lamp-glow)),
-      rgb(var(--lamp-on) / var(--lamp-glow)) 66%
-    ),
-    radial-gradient(
-      circle at 34% 28%,
-      rgb(var(--lamp-glass)),
-      rgb(var(--lamp-off)) 72%
-    );
-  background-blend-mode: plus-lighter;
-  box-shadow:
-    0 0 calc(8px * var(--lamp-glow)) rgb(var(--lamp-on) / 0.75),
-    inset 0 1px 2px rgba(255, 255, 255, calc(0.6 * var(--lamp-glow))),
-    0 1px 0 rgba(255, 255, 255, 0.35);
-}
-
-/* The lamp of a sounding instrument: its light is the output of the
- * instrument. */
 .lamp:where(.is-lit) {
   --lamp-glow: min(0.8, calc(var(--lamp-level) * 2.2 + 0.15));
+}
+
+.lamp:where(.is-lit)::after {
+  opacity: 1;
   animation: lamp-pulse 1.8s ease-in-out infinite;
 }
 
 /*
  * The tone of the module is not stored in the position it plays: the
- * lamp of the module stays on, so the module says so with the lamp it
- * already has and the plate keeps its quiet. The light is steady, where
- * a lit lamp pulses — that is what tells the two apart.
+ * lamp of the module says so with the lamp it already has and the plate
+ * keeps its quiet.
+ *
+ * The rhythm of this mark is its own: the lamp flashes once, briefly,
+ * and is dark for the rest of its cycle. A hold of the reset or of a
+ * memory button blinks the lamp the other way — three blinks in the
+ * second the button is held. The mark of the unsaved tone is one flash
+ * and a long dark stretch, so the two are never mistaken for one
+ * another.
  */
 .lamp:where(.is-dirty) {
   --lamp-glow: 0.67;
 }
 
+.lamp:where(.is-dirty):not(:where(.is-lit))::after {
+  animation: lamp-blink-unsaved var(--blink-unsaved-cycle) linear infinite;
+}
+
 /*
  * The instrument speaks louder: while it sounds, the lamp follows its
- * output down to nothing, and the steady light of the unsaved tone comes
- * back when the instrument falls silent.
+ * output down to nothing, and the mark of the unsaved tone comes back
+ * when the instrument falls silent.
  *
  * The rules above carry the same weight — `:where()` takes the weight of
  * the class away — so the order of the file is what decides: the last
@@ -391,20 +421,97 @@ body {
   --lamp-glow: min(0.8, calc(var(--lamp-level) * 2.2));
 }
 
+/*
+ * The mark of the unsaved tone: the lamp burns for a short moment and is
+ * dark for the rest of its cycle. One flash, and the dark again.
+ *
+ * The lamp is a filament and not an LED: the light does not stop the
+ * instant the lamp is switched off, it dies away and leaves an ember
+ * behind — a hot filament cooling down. The fall is therefore a curve
+ * and not a cut: the lamp drops quickly at first and then trails off
+ * slowly, the way the heat of a filament runs out of it. The stops below
+ * fall along that curve, so the light of the lamp is still to be seen
+ * for a good part of a second after the flash and is gone long before
+ * the cycle turns over. The rise is still instant, the way a lamp lights.
+ *
+ * The steps between the stops are even, so the shape of the fall is the
+ * shape of the stops and not the shape of the easing.
+ *
+ * This is an experiment: the mark may go back to a hard cut if the
+ * afterglow does not read well on the panel.
+ */
+@keyframes lamp-blink-unsaved {
+  0% {
+    opacity: 1;
+  }
+
+  4% {
+    opacity: 1;
+  }
+
+  7% {
+    opacity: 0.66;
+  }
+
+  10% {
+    opacity: 0.47;
+  }
+
+  14% {
+    opacity: 0.34;
+  }
+
+  19% {
+    opacity: 0.25;
+  }
+
+  25% {
+    opacity: 0.185;
+  }
+
+  32% {
+    opacity: 0.135;
+  }
+
+  40% {
+    opacity: 0.1;
+  }
+
+  50% {
+    opacity: 0.065;
+  }
+
+  60% {
+    opacity: 0.04;
+  }
+
+  72% {
+    opacity: 0.02;
+  }
+
+  84% {
+    opacity: 0.008;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+/* The pulse of the sounding instrument: the light of the lamp breathes
+ * with the sound, a touch brighter and a touch dimmer. */
 @keyframes lamp-pulse {
   0%,
   100% {
     box-shadow:
       0 0 calc(7px * var(--lamp-glow)) rgb(var(--lamp-on) / 0.7),
-      inset 0 1px 2px rgba(255, 255, 255, calc(0.6 * var(--lamp-glow))),
-      0 1px 0 rgba(255, 255, 255, 0.35);
+      inset 0 1px 2px rgba(255, 255, 255, calc(0.6 * var(--lamp-glow)));
   }
 
   50% {
     box-shadow:
       0 0 calc(11px * var(--lamp-glow)) rgb(var(--lamp-on) / 0.8),
-      inset 0 1px 2px rgba(255, 255, 255, calc(0.6 * var(--lamp-glow))),
-      0 1px 0 rgba(255, 255, 255, 0.35);
+      inset 0 1px 2px rgba(255, 255, 255, calc(0.6 * var(--lamp-glow)));
   }
 }
 
@@ -570,7 +677,7 @@ body {
   border: 1px solid rgba(20, 23, 26, 0.3);
   border-radius: 5px;
   background: linear-gradient(180deg, #e6e9ea 0%, #d0d4d7 60%, #c0c5c8 100%);
-  color: rgba(20, 23, 26, 0.62);
+  color: rgba(20, 23, 26, 0.42);
   font-family: "Figtree", "Helvetica Neue", Helvetica, Arial, system-ui,
     sans-serif;
   font-size: 9px;
@@ -582,13 +689,16 @@ body {
     0 1px 2px rgba(0, 0, 0, 0.25);
 }
 
+/* The memory positions carry no ink of their own: the number is written
+ * in a faded ink, so the row of four reads as a quiet scale on the
+ * plate. */
 .strip-mem {
   width: 22px;
 }
 
 .strip-mem:hover {
   background: linear-gradient(180deg, #eff2f3 0%, #d8dcdf 60%, #c8cdd0 100%);
-  color: rgba(20, 23, 26, 0.8);
+  color: rgba(20, 23, 26, 0.72);
 }
 
 .strip-mem:active {
@@ -599,10 +709,12 @@ body {
 /* The selected memory position is the one the engine is playing: its
  * button is pressed into the plate and stands out in a darker grey, so
  * the position is told apart at a glance without shouting on the
- * faceplate. */
+ * faceplate. Its number is written in a faded ink as well: the ink of a
+ * position that holds a tone of the user is solid, and that is what tells
+ * the two apart. */
 .strip-mem.is-selected,
 .strip-mem[aria-pressed="true"] {
-  color: rgba(20, 23, 26, 0.88);
+  color: rgba(20, 23, 26, 0.55);
   background: linear-gradient(180deg, #9aa1a6 0%, #7f868b 100%);
   border-color: rgba(20, 23, 26, 0.45);
   box-shadow:
@@ -612,7 +724,7 @@ body {
 
 .strip-mem.is-selected:hover,
 .strip-mem[aria-pressed="true"]:hover {
-  color: rgba(20, 23, 26, 0.95);
+  color: rgba(20, 23, 26, 0.7);
   background: linear-gradient(180deg, #a4abb0 0%, #8b9297 100%);
 }
 
@@ -625,9 +737,11 @@ body {
 /* A memory position that holds a tone of the user — one that was stored
  * in it and is not its built-in tone any more — says so with its own
  * number: the number is written in a darker ink than the others, so the
- * position is told apart at a glance without a mark on the button. */
+ * position is told apart at a glance without a mark on the button. The
+ * ink is solid where the other numbers are faded, so the two are told
+ * apart even on the pressed-in plate of the selected position. */
 .strip-mem.is-modified {
-  color: rgba(20, 23, 26, 0.95);
+  color: rgba(20, 23, 26, 1);
 }
 
 /* The selected position is pressed into the plate and its number is
@@ -694,27 +808,21 @@ body {
   }
 }
 
-/* The lamp of a module blinks while its reset is armed: three blinks in
- * the second the button is held. */
+/* The lamp of a module blinks while one of its controls is held: the
+ * reset and the memory buttons of a module blink the same way, in the
+ * same time — three blinks in the second the button is held. The light
+ * of the lamp goes out between the blinks, the way a lamp goes out and
+ * not down to a dimmer colour. */
 .lamp.is-blinking {
   --lamp-glow: 0.8;
-  background:
-    radial-gradient(
-      circle at 34% 28%,
-      rgb(var(--lamp-core) / var(--lamp-glow)),
-      rgb(var(--lamp-on) / var(--lamp-glow)) 66%
-    ),
-    radial-gradient(
-      circle at 34% 28%,
-      rgb(var(--lamp-glass)),
-      rgb(var(--lamp-off)) 72%
-    );
-  background-blend-mode: plus-lighter;
+}
+
+.lamp.is-blinking::after {
+  opacity: 1;
   box-shadow:
     0 0 8px rgb(var(--lamp-on) / 0.75),
-    inset 0 1px 2px rgba(255, 255, 255, 0.6),
-    0 1px 0 rgba(255, 255, 255, 0.35);
-  animation: lamp-blink 0.33s steps(1, end) 3;
+    inset 0 1px 2px rgba(255, 255, 255, 0.6);
+  animation: lamp-blink var(--blink-cycle) steps(1, end) var(--blink-count);
 }
 
 @keyframes lamp-blink {
@@ -725,7 +833,7 @@ body {
 
   50%,
   100% {
-    opacity: 0.2;
+    opacity: 0;
   }
 }
 
@@ -1154,24 +1262,7 @@ body {
 button:focus-visible,
 .knob:focus-visible {
   outline: 2px solid var(--focus);
-  outline-offset: 2px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .lamp.is-lit {
-    animation: none;
-  }
-
-  /* The lamp of an armed reset stays lit and the line of light does not
-   * run: the hold is still a hold, it is only not shown. */
-  .lamp.is-blinking {
-    animation: none;
-  }
-
-  .strip-reset.is-armed::after {
-    animation: none;
-    transform: scaleX(1);
-  }
+  outline-offset: 3px;
 }
 
 @media (max-width: 640px) {

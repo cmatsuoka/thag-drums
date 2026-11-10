@@ -233,6 +233,17 @@ export function createPanel(host: HTMLElement, engine: HivedrumEngine): Panel {
    * lamp of the module. */
   const soundingFlags = new Map<Voice, boolean>();
 
+  /* The owner of the blink of the lamp of a module.
+   *
+   * The reset button and the four memory buttons of a module share the
+   * one lamp of the module, and every one of them may blink it while it
+   * is held. The blink therefore has an owner: the control that armed
+   * it. A control that lets go — or that loses the focus, as the reset
+   * does when a memory button is pressed — may only put the blink out
+   * while it still owns it, or it would put out the blink of the button
+   * that is being held at that moment. */
+  const blinkOwners = new Map<Voice, object>();
+
   /* The channel of every module: the mixer of the voice and its effects
    * send. They belong to the module and not to the tone in it, so they
    * are kept apart from the memories and written down as the user sets
@@ -590,6 +601,36 @@ export function createPanel(host: HTMLElement, engine: HivedrumEngine): Panel {
   }
 
   /**
+   * Arm the blink of the lamp of a module.
+   *
+   * The control that arms the blink owns it: it is the only one that may
+   * put it out again.
+   */
+  function armBlink(voice: Voice, lamp: HTMLElement, owner: object): void {
+    blinkOwners.set(voice, owner);
+    lamp.classList.add('is-blinking');
+  }
+
+  /**
+   * Put the blink of the lamp of a module out.
+   *
+   * The blink is only put out by the control that owns it: the reset and
+   * the memory buttons of a module share the one lamp, and the release of
+   * one of them must not put out the blink of the other.
+   */
+  function releaseBlink(
+    voice: Voice,
+    lamp: HTMLElement,
+    owner: object,
+  ): void {
+    if (blinkOwners.get(voice) !== owner) {
+      return;
+    }
+    blinkOwners.delete(voice);
+    lamp.classList.remove('is-blinking');
+  }
+
+  /**
    * Wire the memory button of a position.
    *
    * A press picks the position and recalls the tone in it. A hold stores
@@ -612,6 +653,8 @@ export function createPanel(host: HTMLElement, engine: HivedrumEngine): Panel {
     /* Whether the last hold stored the tone: the click that follows it
      * must not pick the position as well. */
     let stored = false;
+    /* The owner of the blink of the lamp, while this button holds it. */
+    const owner = {};
 
     const stop = (): void => {
       if (timer !== null) {
@@ -619,7 +662,7 @@ export function createPanel(host: HTMLElement, engine: HivedrumEngine): Panel {
         timer = null;
       }
       button.classList.remove('is-armed');
-      lamp.classList.remove('is-blinking');
+      releaseBlink(voice, lamp, owner);
     };
 
     const arm = (): void => {
@@ -628,7 +671,7 @@ export function createPanel(host: HTMLElement, engine: HivedrumEngine): Panel {
       }
       stored = false;
       button.classList.add('is-armed');
-      lamp.classList.add('is-blinking');
+      armBlink(voice, lamp, owner);
       timer = window.setTimeout(() => {
         timer = null;
         stored = true;
@@ -701,6 +744,8 @@ export function createPanel(host: HTMLElement, engine: HivedrumEngine): Panel {
     button: HTMLButtonElement,
   ): void {
     let timer: number | null = null;
+    /* The owner of the blink of the lamp, while this button holds it. */
+    const owner = {};
 
     const stop = (): void => {
       if (timer !== null) {
@@ -708,7 +753,7 @@ export function createPanel(host: HTMLElement, engine: HivedrumEngine): Panel {
         timer = null;
       }
       button.classList.remove('is-armed');
-      lamp.classList.remove('is-blinking');
+      releaseBlink(voice, lamp, owner);
     };
 
     const arm = (): void => {
@@ -716,7 +761,7 @@ export function createPanel(host: HTMLElement, engine: HivedrumEngine): Panel {
         return;
       }
       button.classList.add('is-armed');
-      lamp.classList.add('is-blinking');
+      armBlink(voice, lamp, owner);
       timer = window.setTimeout(() => {
         timer = null;
         resetVoice(voice);
