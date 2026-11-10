@@ -1058,6 +1058,99 @@ body {
   color: #4a4d50;
 }
 
+/* the player's guide, below the console */
+.help {
+  max-width: var(--plate-width);
+  margin: 0.6rem auto 0;
+  background: #e7e4dc;
+  border: 1px solid #c4c0b6;
+  border-radius: 3px;
+}
+
+.help-summary {
+  padding: 0.6rem 1rem;
+  font-size: 0.9rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.help-summary::marker {
+  color: #6a6d70;
+}
+
+.help-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem 2.5rem;
+  padding: 0 1rem 1rem;
+}
+
+.help-block {
+  flex: 1 1 260px;
+  min-width: 240px;
+}
+
+.help-heading {
+  margin: 0 0 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #4a4d50;
+  border-bottom: 1px solid #c4c0b6;
+  padding-bottom: 0.25rem;
+}
+
+.help-keys {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.25rem 0.75rem;
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.help-keys dt {
+  margin: 0;
+}
+
+.help-keys dd {
+  margin: 0;
+  color: #35383b;
+}
+
+.help-keys kbd {
+  display: inline-block;
+  min-width: 1.6em;
+  padding: 0.1em 0.4em;
+  text-align: center;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.8rem;
+  background: #d5d2ca;
+  border: 1px solid #a9a59b;
+  border-bottom-width: 2px;
+  border-radius: 2px;
+}
+
+.help-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: #35383b;
+}
+
+.help-list li + li {
+  margin-top: 0.3rem;
+}
+
+.help-note {
+  margin: 0.6rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: #4a4d50;
+}
+
 button:focus-visible,
 .knob:focus-visible {
   outline: 2px solid var(--focus);

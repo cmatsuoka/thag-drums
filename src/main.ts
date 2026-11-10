@@ -2,6 +2,7 @@ import { HivedrumEngine } from './audio/engine';
 import { attachKeyboard } from './audio/keyboard';
 import { MidiInput } from './audio/midi';
 import { createDemoStrip, type DemoStrip } from './ui/demo-strip';
+import { createHelp } from './ui/help';
 import { createPanel } from './ui/panel';
 
 /*
@@ -65,6 +66,9 @@ demo = createDemoStrip(app, engine, {
     midi.select(id);
   },
 });
+
+/* The player's guide, folded away under the console. */
+app.append(createHelp());
 
 engine.onError((message) => {
   demo?.showError(message);
