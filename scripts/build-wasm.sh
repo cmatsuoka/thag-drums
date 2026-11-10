@@ -17,7 +17,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 HIVEDRUM_REPO="${HIVEDRUM_REPO:-https://github.com/cmatsuoka/hivedrum}"
-HIVEDRUM_COMMIT="${HIVEDRUM_COMMIT:-9a26a272daf30cb3ce65053e393e25230cb2b882}"
+HIVEDRUM_COMMIT="${HIVEDRUM_COMMIT:-a6880eb8df478788d6ff8867d0446abccd9afd8d}"
 # The pristine sources the build is made from.
 HIVEDRUM_SOURCE="${HIVEDRUM_SOURCE:-$ROOT/vendor/libhivedrum-src}"
 # The sources the build actually compiles: a copy of the sources above.
